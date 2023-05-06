@@ -29,8 +29,20 @@ int main()
     // create a device
     Device device("hw:0");
 
+    SwrContextParam swrCtxParam = 
+    {
+        .enable = true,
+        .out_ch_layout = AV_CH_LAYOUT_STEREO,
+        .out_sample_fmt = AV_SAMPLE_FMT_S16,
+        .out_sample_rate = 44100,
+        .in_ch_layout = AV_CH_LAYOUT_STEREO,
+        .in_sample_fmt = AV_SAMPLE_FMT_S16,
+        .in_sample_rate = 48000,
+        .log_offset = 0,
+        .log_ctx = nullptr
+    };
     // start record and save output file
-    device.record("out.pcm");
+    device.audioRecord("out.pcm", swrCtxParam);
     
     return 0;
 }
