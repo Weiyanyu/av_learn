@@ -8,10 +8,15 @@ set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -DNDEBUG")
 
 aux_source_directory(. DIR_SRCS)
 add_subdirectory(device)
+add_subdirectory(utils)
 
 include_directories(${PROJECT_SOURCE_DIR}/device/include)
+include_directories(${PROJECT_SOURCE_DIR}/utils/include)
+
 
 add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME} device)
+target_link_libraries(${PROJECT_NAME} avdemodevice)
+target_link_libraries(${PROJECT_NAME} avdemoutils)
+
 
 

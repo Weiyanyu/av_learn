@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(libdevice)
+project(libavdemodevice)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE "Debug")
@@ -23,10 +23,15 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
     libavutil
 )
 
+include_directories(
+    ${PROJECT_SOURCE_DIR}/include/ 
+    ${PROJECT_SOURCE_DIR}/../utils/include/
+)
 
+link_directories("../lib/utils/")
 
 add_compile_options(-fPIC)
 aux_source_directory(src DIR_LIB_SRCS)
-include_directories(${PROJECT_SOURCE_DIR}/include/)
-add_library (device SHARED  ${DIR_LIB_SRCS})
-target_link_libraries(device PkgConfig::LIBAV)
+message(${PROJECT_SOURCE_DIR}/../utils/include)
+add_library (avdemodevice SHARED  ${DIR_LIB_SRCS})
+target_link_libraries(avdemodevice PkgConfig::LIBAV avdemoutils)

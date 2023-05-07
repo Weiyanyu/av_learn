@@ -1,5 +1,6 @@
 #include "resample.h"
 #include "device.h"
+#include "../../utils/include/log.h"
 #include <cmath>
 
 extern "C"
@@ -36,13 +37,13 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
 
     if (!m_swrCtx)
     {
-        av_log(NULL, AV_LOG_ERROR, "failed to alloct swr context.");
+        AV_LOG_E("failed to alloct swr context.");
         return;
     }
 
     if (swr_init(m_swrCtx) < 0)
     {
-        av_log(NULL, AV_LOG_ERROR, "failed to init swr context.");
+        AV_LOG_E("failed to init swr context.");
         return;
     }
 
@@ -63,7 +64,7 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
     av_samples_alloc_array_and_samples(&m_srcData, &srcLineSize, m_inChannel, m_inSamples, swrParam.in_sample_fmt, inAlgin);
     av_samples_alloc_array_and_samples(&m_dstData, &dstLineSize, m_outChannel, m_outSamples, swrParam.out_sample_fmt, outAlgin);
     
-    av_log(NULL, AV_LOG_DEBUG, "src line size %d dstLineSize %dm_inSamples %d, m_outSamples %d\n ", srcLineSize, dstLineSize, m_inSamples, m_outSamples);
+    AV_LOG_D("src line size %d dstLineSize %dm_inSamples %d, m_outSamples %d ", srcLineSize, dstLineSize, m_inSamples, m_outSamples);
     m_enable = true;
 }
 
@@ -71,18 +72,18 @@ SwrConvertor::~SwrConvertor()
 {
     if (m_swrCtx)
     {
-        av_log(NULL, AV_LOG_DEBUG, "release swr context\n");
+        AV_LOG_D("release swr context");
         swr_free(&m_swrCtx);
     }
     if (m_srcData)
     {
-        av_log(NULL, AV_LOG_DEBUG, "release m_srcData\n");
+        AV_LOG_D("release swr m_srcData");
         av_freep(&m_srcData[0]);
         av_free(m_srcData);
     }
     if (m_dstData)
     {
-        av_log(NULL, AV_LOG_DEBUG, "release m_dstData\n");
+        AV_LOG_D("release m_dstData");
         av_freep(&m_dstData[0]);
         av_free(m_dstData);
     }
@@ -99,6 +100,6 @@ std::pair<uint8_t**, int> SwrConvertor::convert(uint8_t* data, int size)
                 m_inSamples);                        //输入单个通道的采样数
 
     int outputSize = nbSampleOutput * m_outChannel * m_outSampleSize;
-    av_log(NULL, AV_LOG_DEBUG, "resample outputSize %d\n", outputSize);
+    AV_LOG_D("resample outputSize %d", outputSize);
     return {m_dstData, outputSize};
 }

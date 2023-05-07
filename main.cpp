@@ -15,6 +15,7 @@ extern "C"
 #include <iostream>
 #include <fstream>
 #include "device.h"
+#include "log.h"
 
 void initParam()
 {

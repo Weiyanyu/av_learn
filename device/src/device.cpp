@@ -10,6 +10,7 @@ extern "C"
 
 #include "device.h"
 #include "resample.h"
+#include "../../utils/include/log.h"
 
 #include <iostream>
 #include <fstream>
@@ -27,12 +28,12 @@ Device::Device(const std::string& deviceName)
     {
         char errors[1024];
         av_strerror(ret, errors, sizeof(errors));
-        av_log(NULL, AV_LOG_ERROR, "Failed to open audio device(%s)\nerror:%s\n", m_deviceName.c_str(), errors);
+        AV_LOG_E("Failed to open audio device(%s)\nerror:%s", m_deviceName.c_str(), errors);
         return;
     }
     else
     {
-        av_log(NULL, AV_LOG_DEBUG, "success to open audio device(%s)\n", m_deviceName.c_str());
+        AV_LOG_D("success to open audio device(%s)", m_deviceName.c_str());
     }
 
 }
@@ -60,7 +61,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
     }
     else
     {
-        av_log(NULL, AV_LOG_ERROR, "can't read any frame");
+        AV_LOG_E("can't read any frame");
         return;
     }
 
@@ -78,7 +79,6 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         else
         {
             ofs.write(reinterpret_cast<char*>(audioPacket.data), audioPacket.size);
-            av_log(NULL, AV_LOG_DEBUG, "audio packet size: %d\n", audioPacket.size);
         }
 
         av_packet_unref(&audioPacket);
