@@ -1,5 +1,6 @@
 #include "resample.h"
 #include "device.h"
+#include <cmath>
 
 extern "C"
 {
@@ -17,8 +18,9 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
     m_outChannel = av_get_channel_layout_nb_channels(swrParam.out_ch_layout);
     m_inSampleSize = av_get_bytes_per_sample(swrParam.in_sample_fmt);
     m_outSampleSize = av_get_bytes_per_sample(swrParam.out_sample_fmt);
-    m_inSamples = packetSize / m_inChannel / m_inSampleSize;
-    m_outSamples = packetSize / m_outChannel / m_outSampleSize;
+    
+    m_inSamples = std::ceil(packetSize / m_inChannel / m_inSampleSize);
+    m_outSamples = std::ceil(packetSize / m_outChannel / m_outSampleSize);
 
     m_swrCtx = swr_alloc_set_opts(
         nullptr, 

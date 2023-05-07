@@ -34,9 +34,6 @@ public:
     void audioRecord(const std::string& outFilename, const SwrContextParam& swrParam);
 
 private:
-    SwrContext* genSwrContext(const SwrContextParam& swrParam);
-
-private:
     std::string m_deviceName;
     AVFormatContext* m_fmtCtx = nullptr;
 };

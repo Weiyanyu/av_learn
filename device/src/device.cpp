@@ -85,33 +85,3 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
     } while (av_read_frame(m_fmtCtx, &audioPacket) == 0 && recordCnt > 0);
     
 }
-
-SwrContext* Device::genSwrContext(const SwrContextParam& swrParam)
-{
-    if (!swrParam.enable) return nullptr;
-    SwrContext* swrCtx = swr_alloc_set_opts(
-        nullptr, 
-        swrParam.out_ch_layout, 
-        swrParam.out_sample_fmt, 
-        swrParam.out_sample_rate, 
-        swrParam.in_ch_layout, 
-        swrParam.in_sample_fmt, 
-        swrParam.in_sample_rate, 
-        swrParam.log_offset, 
-        swrParam.log_ctx
-    );
-
-    if (!swrCtx)
-    {
-        av_log(NULL, AV_LOG_ERROR, "failed to alloct swr context.");
-        return nullptr;
-    }
-
-    if (swr_init(swrCtx) < 0)
-    {
-        av_log(NULL, AV_LOG_ERROR, "failed to init swr context.");
-        return nullptr;
-    }
-
-    return swrCtx;
-}
