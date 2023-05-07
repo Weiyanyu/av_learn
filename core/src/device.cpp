@@ -65,7 +65,33 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         return;
     }
 
+    //1. resample
     SwrConvertor swrConvertor(swrParam, audioPacketSize);
+
+    //2. codec
+    // AVCodec* codec = avcodec_find_encoder(AVCodecID::AV_CODEC_ID_AAC);
+    AVCodec* codec = avcodec_find_encoder_by_name("libfdk_aac");
+    AVCodecContext* codecCtx = avcodec_alloc_context3(codec);
+    if (codecCtx == nullptr)
+    {
+        AV_LOG_E("Failed to alloc AVCodecContext with codec(%s)", avcodec_get_name(AVCodecID::AV_CODEC_ID_AAC));
+        return;
+    }
+
+    codecCtx->sample_fmt = AV_SAMPLE_FMT_S16;
+    codecCtx->channel_layout = AV_CH_LAYOUT_STEREO;
+    codecCtx->channels = av_get_channel_layout_nb_channels(codecCtx->channel_layout);
+    codecCtx->sample_rate = 44100;
+    codecCtx->bit_rate = 0;
+    codecCtx->profile = FF_PROFILE_AAC_HE_V2;
+
+    if (int ret = avcodec_open2(codecCtx, codec, NULL); ret < 0)
+    {
+        char errors[1024];
+        av_strerror(ret, errors, sizeof(errors));
+        AV_LOG_E("Failed to open codec (%s)\nerror:%s", avcodec_get_name(AVCodecID::AV_CODEC_ID_AAC), errors);
+        return;
+    }
 
     do
     {
@@ -83,5 +109,8 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
 
         av_packet_unref(&audioPacket);
     } while (av_read_frame(m_fmtCtx, &audioPacket) == 0 && recordCnt > 0);
+
+
+    avcodec_close(codecCtx);
     
 }
