@@ -32,6 +32,5 @@ link_directories("../lib/utils/")
 
 add_compile_options(-fPIC)
 aux_source_directory(src DIR_LIB_SRCS)
-message(${PROJECT_SOURCE_DIR}/../utils/include)
 add_library (avdemocore SHARED  ${DIR_LIB_SRCS})
 target_link_libraries(avdemocore PkgConfig::LIBAV avdemoutils)

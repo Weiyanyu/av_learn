@@ -10,7 +10,6 @@ extern "C"
 
 struct SwrContextParam
 {
-    bool enable = false;
     int64_t out_ch_layout;
     enum AVSampleFormat out_sample_fmt;
     int out_sample_rate;
@@ -37,16 +36,21 @@ public:
 
     ~SwrConvertor();
 
-    std::pair<uint8_t**, int> convert(uint8_t* data, int size);
 
 public:
     bool enable() const { return m_enable; }
+    std::pair<uint8_t**, int> convert(uint8_t* data, int size);
+    
+    bool hasRemain() const { return m_curOutputBufferSize > 0; }
+    std::pair<uint8_t**, int> flushRemain();
 private:
     bool m_enable = false;
     SwrContext* m_swrCtx = nullptr;
 
     uint8_t** m_srcData = nullptr;
     uint8_t** m_dstData = nullptr;
+    uint8_t** m_tempData = nullptr;
+
 
     // in/out param
     int m_inChannel = 0;
@@ -55,4 +59,11 @@ private:
     int m_outSampleSize = 0;
     int m_inSamples = 0;
     int m_outSamples = 0;
+    SwrContextParam m_ctxParam;
+
+    int m_srcLineSize = 0;
+    int m_dstLineSize = 0;
+
+    int m_curOutputBufferSize = 0;
+    int m_fullOutputBufferSize = 0;
 };

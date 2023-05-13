@@ -16,6 +16,7 @@ extern "C"
 #include <fstream>
 #include "device.h"
 #include "resample.h"
+#include "audiocodec.h"
 #include "log.h"
 
 void initParam()
@@ -33,7 +34,6 @@ int main()
 
     SwrContextParam swrCtxParam = 
     {
-        .enable = true,
         .out_ch_layout = AV_CH_LAYOUT_STEREO,
         .out_sample_fmt = AV_SAMPLE_FMT_S16,
         .out_sample_rate = 44100,
@@ -43,8 +43,19 @@ int main()
         .log_offset = 0,
         .log_ctx = nullptr
     };
+
+    AudioEncoderParam encoderParam =
+    {
+        .needEncode = true,
+        .codecName = "libfdk_aac",
+        .sampleFmt = AV_SAMPLE_FMT_S16,
+        .channelLayout = AV_CH_LAYOUT_STEREO,
+        .sampleRate = 44100,
+        .bitRate = 0,
+        .profile = FF_PROFILE_AAC_HE_V2
+    };
     // start record and save output file
-    device.audioRecord("out.pcm", swrCtxParam);
+    device.audioRecord("out.aac", swrCtxParam, encoderParam);
     
     return 0;
 }
