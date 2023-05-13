@@ -16,6 +16,12 @@ class Frame
 {
 public:
     Frame(const FrameParam& initParam);
+    // dsiable copy-ctor and move-ctor
+    Frame(const Frame&) = delete;
+    Frame& operator=(const Frame) = delete;
+    Frame(Frame&&) = delete;
+    Frame& operator=(Frame&&) = delete;
+
     ~Frame();
 public:
     AVFrame* getAVFrame() const { return m_avFrame; }

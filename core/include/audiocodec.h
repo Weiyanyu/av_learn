@@ -22,6 +22,12 @@ class AudioEncoder
 {
 public:
     AudioEncoder(const AudioEncoderParam& initParam);
+    // dsiable copy-ctor and move-ctor
+    AudioEncoder(const AudioEncoder&) = delete;
+    AudioEncoder& operator=(const AudioEncoder) = delete;
+    AudioEncoder(AudioEncoder&&) = delete;
+    AudioEncoder& operator=(AudioEncoder&&) = delete;
+
     ~AudioEncoder();
 
     void encode(Frame& frame, AVPacket* pkt, std::ostream& os, bool isFlush = false);

@@ -38,7 +38,7 @@ Frame::Frame(const FrameParam& initParam)
         return;
     }
 
-    AV_LOG_D("frame nb_samples %d channle layout %d fromat %d", m_avFrame->nb_samples, m_avFrame->channel_layout, m_avFrame->format);
+    AV_LOG_D("frame nb_samples %d channle layout %ld fromat %d", m_avFrame->nb_samples, m_avFrame->channel_layout, m_avFrame->format);
 }
 
 Frame::~Frame()
