@@ -14,7 +14,7 @@ extern "C"
 
 #include "device.h"
 #include "resample.h"
-#include "audiocodec.h"
+#include "codec.h"
 #include "frame.h"
 #include "../../utils/include/log.h"
 
@@ -23,14 +23,31 @@ extern "C"
 #include <stdio.h>
 
 
-Device::Device(const std::string& deviceName)
-    :m_deviceName(deviceName)
+Device::Device(const std::string& deviceName, DeviceType deviceType)
+    :m_deviceName(deviceName),
+     m_deviceType(deviceType)
 {
     // get format
-    AVInputFormat* audioInputFormat = av_find_input_format("alsa");
+    AVInputFormat* inputFormat = nullptr;
+    switch (m_deviceType)
+    {
+    case DeviceType::AUDIO:
+        inputFormat = av_find_input_format("alsa");
+        break;
+    case DeviceType::VIDEO:
+        inputFormat = av_find_input_format("Video4Linux2");
+        break;
+    case DeviceType::FILE:
+        inputFormat = nullptr;
+        break;
+    default:
+        AV_LOG_E("unkown device type %d", (int)m_deviceType);
+        break;
+    }
+
     AVDictionary* options = nullptr;
-    // open audio device
-    if (auto ret = avformat_open_input(&m_fmtCtx, m_deviceName.c_str(), audioInputFormat, &options); ret < 0)
+    // open device
+    if (auto ret = avformat_open_input(&m_fmtCtx, m_deviceName.c_str(), inputFormat, &options); ret < 0)
     {
         char errors[1024];
         av_strerror(ret, errors, sizeof(errors));
@@ -51,8 +68,13 @@ Device::~Device()
     }
 }
 
-void Device::audioRecord(const std::string& outFilename, const SwrContextParam& swrParam, const AudioEncoderParam& audioEncodeParam)
+void Device::audioRecord(const std::string& outFilename, const SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam)
 {
+    if (m_deviceType != DeviceType::AUDIO)
+    {
+        AV_LOG_E("only DeviceType::AUDIO support audio record. please check it");
+        return;
+    }
     std::ofstream ofs(outFilename, std::ios::out);
     int recordCnt = 5000;
     AVPacket audioPacket;
@@ -76,14 +98,14 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
     SwrConvertor swrConvertor(swrParam, audioPacketSize);
     
     //2. codec
-    AudioEncoder audioEncoder(audioEncodeParam);
+    AudioCodec audioCodec(audioEncodeParam);
 
     //3. create a frame
     // outChannel = 
     // frameNbSample = std::ceil(audioPacketSize / m_outChannel / m_outSampleSize);
     FrameParam frameParam = 
     {
-        .enable = audioEncoder.enable(),
+        .enable = audioCodec.enable(),
         .pktSize = audioPacketSize,
         .channelLayout = audioEncodeParam.channelLayout,
         .format = audioEncodeParam.sampleFmt,
@@ -105,10 +127,10 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
             auto [outputData, outputSize] = swrConvertor.convert(audioPacket.data, audioPacket.size);
             if (outputData && outputSize)
             {
-                if (audioEncoder.enable())
+                if (audioCodec.enable())
                 {
                     frame.writeAudioData(outputData, outputSize);
-                    audioEncoder.encode(frame, newPkt, ofs);
+                    audioCodec.encode(frame, newPkt, ofs);
                 }
                 else
                 {
@@ -119,10 +141,10 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         }
         else
         {
-            if (audioEncoder.enable())
+            if (audioCodec.enable())
             {
                 frame.writeAudioData(&audioPacket.data, audioPacket.size);
-                audioEncoder.encode(frame, newPkt, ofs);
+                audioCodec.encode(frame, newPkt, ofs);
             }
             else
             {
@@ -140,10 +162,10 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         AV_LOG_D("flush remain buffer size %d", remainBufferSize);
         if (remainData && remainBufferSize)
         {
-            if (audioEncoder.enable())
+            if (audioCodec.enable())
             {
                 frame.writeAudioData(remainData, remainBufferSize);
-                audioEncoder.encode(frame, newPkt, ofs);
+                audioCodec.encode(frame, newPkt, ofs);
             }
             else
             {
@@ -152,13 +174,71 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         }
     }
 
-    if (audioEncoder.enable())
+    if (audioCodec.enable())
     {
         // flush frame
-        audioEncoder.encode(frame, newPkt, ofs, true);
+        audioCodec.encode(frame, newPkt, ofs, true);
     }
 
 
     av_packet_free(&newPkt);
     
+}
+
+void Device::readVideoData()
+{
+    if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
+    {
+        AV_LOG_E("can't read video stream info");
+        return;
+    }
+
+    int videoStreamIdx = -1;
+    for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
+    {
+        if (m_fmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        {
+            videoStreamIdx = i;
+            break;
+        }
+    }
+    if (videoStreamIdx == -1)
+    {
+        AV_LOG_E("can't find video stream.");
+        return;
+    }
+
+    AVCodec* codec = avcodec_find_decoder(m_fmtCtx->streams[videoStreamIdx]->codecpar->codec_id);
+    if (!codec)
+    {
+        AV_LOG_E("can't find video decode %d", m_fmtCtx->streams[videoStreamIdx]->codecpar->codec_id);
+        return;
+    }
+
+    AVCodecContext* codecCtx = avcodec_alloc_context3(codec);
+    if (!codecCtx)
+    {
+        AV_LOG_E("faild to alloc codec context");
+        return;
+    }
+    if (avcodec_parameters_to_context(codecCtx, m_fmtCtx->streams[videoStreamIdx]->codecpar) < 0)
+    {
+        AV_LOG_E("faild to replace context");
+        return;
+    }
+
+
+    if (avcodec_open2(codecCtx, codec, nullptr) < 0)
+    {
+        AV_LOG_D("faild to open decode %s", codec->name);
+        return;
+    }
+
+    AV_LOG_D("video format %s",m_fmtCtx->iformat->name);
+    AV_LOG_D("video time %ld", (m_fmtCtx->duration)/1000000);
+    AV_LOG_D("video w/h %d/%d",codecCtx->width,codecCtx->height);
+    AV_LOG_D("video codec name %s",codec->name);
+
+
+    avcodec_close(codecCtx);
 }

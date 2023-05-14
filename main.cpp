@@ -16,7 +16,7 @@ extern "C"
 #include <fstream>
 #include "device.h"
 #include "resample.h"
-#include "audiocodec.h"
+#include "codec.h"
 #include "log.h"
 
 void initParam()
@@ -30,7 +30,7 @@ int main()
     initParam();
 
     // create a device
-    Device device("hw:0");
+    Device device("hw:0", DeviceType::AUDIO);
 
     SwrContextParam swrCtxParam = 
     {
@@ -44,7 +44,7 @@ int main()
         .log_ctx = nullptr
     };
 
-    AudioEncoderParam encoderParam =
+    AudioCodecParam encoderParam =
     {
         .needEncode = true,
         .codecName = "libfdk_aac",
@@ -56,6 +56,9 @@ int main()
     };
     // start record and save output file
     device.audioRecord("out.aac", swrCtxParam, encoderParam);
+
+    // Device device2("/home/yeonon/learn/av/demo/sample-5s.mp4", DeviceType::FILE);
+    // device2.readVideoData();
     
     return 0;
 }

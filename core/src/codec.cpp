@@ -1,8 +1,6 @@
-#include "audiocodec.h"
+#include "codec.h"
 #include "../../utils/include/log.h"
 #include "frame.h"
-
-
 
 extern "C"
 {
@@ -10,8 +8,10 @@ extern "C"
 #include <libavutil/frame.h>
 }
 
+#include <ostream>
 
-AudioEncoder::AudioEncoder(const AudioEncoderParam& initParam)
+
+AudioCodec::AudioCodec(const AudioCodecParam& initParam)
     :m_codecCtx(nullptr),
      m_enable(false)
 {
@@ -46,7 +46,7 @@ AudioEncoder::AudioEncoder(const AudioEncoderParam& initParam)
     m_enable = true;
 }
 
-AudioEncoder::~AudioEncoder()
+AudioCodec::~AudioCodec()
 {
     if (m_codecCtx)
     {
@@ -54,7 +54,7 @@ AudioEncoder::~AudioEncoder()
     }
 }
 
-void AudioEncoder::encode(Frame& frame, AVPacket* pkt, std::ostream& os, bool isFlush)
+void AudioCodec::encode(Frame& frame, AVPacket* pkt, std::ostream& os, bool isFlush)
 {
     if (!m_enable) return;
     int res = 0;
