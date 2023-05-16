@@ -24,8 +24,10 @@ public:
 
     ~Frame();
 public:
+    bool isValid() const { return m_valid; }
     AVFrame* getAVFrame() const { return m_avFrame; }
     void writeAudioData(uint8_t** audioData, int32_t audioDataSize);
 private:
     AVFrame* m_avFrame;
+    bool m_valid;
 };

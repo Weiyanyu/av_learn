@@ -10,7 +10,8 @@ extern "C"
 
 
 Frame::Frame(const FrameParam& initParam)
-    :m_avFrame(nullptr)
+    :m_avFrame(nullptr),
+     m_valid(false)
 {
     if (!initParam.enable)
     {
@@ -37,7 +38,7 @@ Frame::Frame(const FrameParam& initParam)
         AV_LOG_E("Failed to alloc frame buffer");
         return;
     }
-
+    m_valid = true;
     AV_LOG_D("frame nb_samples %d channle layout %ld fromat %d", m_avFrame->nb_samples, m_avFrame->channel_layout, m_avFrame->format);
 }
 
@@ -51,6 +52,11 @@ Frame::~Frame()
 
 void Frame::writeAudioData(uint8_t** audioData, int32_t audioDataSize)
 {
+    if (!m_valid)
+    {
+        AV_LOG_W("frame is not valid!");
+        return;
+    }
     memcpy((void*)m_avFrame->data[0], audioData[0], audioDataSize);
 }
 

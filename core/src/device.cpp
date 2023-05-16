@@ -130,7 +130,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
             auto [outputData, outputSize] = swrConvertor.convert(audioPacket.data, audioPacket.size);
             if (outputData && outputSize)
             {
-                if (audioCodec.enable())
+                if (audioCodec.enable() && frame.isValid())
                 {
                     frame.writeAudioData(outputData, outputSize);
                     audioCodec.encode(frame, newPkt, ofs);
@@ -144,7 +144,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         }
         else
         {
-            if (audioCodec.enable())
+            if (audioCodec.enable() && frame.isValid())
             {
                 frame.writeAudioData(&audioPacket.data, audioPacket.size);
                 audioCodec.encode(frame, newPkt, ofs);
@@ -165,7 +165,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         AV_LOG_D("flush remain buffer size %d", remainBufferSize);
         if (remainData && remainBufferSize)
         {
-            if (audioCodec.enable())
+            if (audioCodec.enable() && frame.isValid())
             {
                 frame.writeAudioData(remainData, remainBufferSize);
                 audioCodec.encode(frame, newPkt, ofs);
@@ -177,9 +177,9 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         }
     }
 
-    if (audioCodec.enable())
+    // flush frame
+    if (audioCodec.enable() && frame.isValid())
     {
-        // flush frame
         audioCodec.encode(frame, newPkt, ofs, true);
     }
 
