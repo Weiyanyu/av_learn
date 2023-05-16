@@ -9,6 +9,9 @@ extern "C"
 #include <libswresample/swresample.h>
 #include <libavutil/opt.h>
 #include <libavutil/frame.h>
+
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 }
 
 
@@ -238,7 +241,79 @@ void Device::readVideoData()
     AV_LOG_D("video time %ld", (m_fmtCtx->duration)/1000000);
     AV_LOG_D("video w/h %d/%d",codecCtx->width,codecCtx->height);
     AV_LOG_D("video codec name %s",codec->name);
+    AV_LOG_D("video AVPixelFormat %d",codecCtx->pix_fmt);
+
+    
 
 
+
+    AVPacket* packet = av_packet_alloc();
+    if (!packet)
+    {
+        AV_LOG_E("can't alloct packet");
+        return;
+    }
+
+    AVFrame* frame = av_frame_alloc();
+    if (!frame)
+    {
+        AV_LOG_E("can't alloct frame");
+        return;
+    }
+
+    AVFrame* frameYUV = av_frame_alloc();
+    if (!frameYUV)
+    {
+        AV_LOG_E("can't alloct frame yuv");
+        return;
+    }
+
+    int picBufferSize = av_image_get_buffer_size(codecCtx->pix_fmt, 1280,720, 1);
+    uint8_t* outBuffer = (uint8_t*)av_malloc(picBufferSize);
+    av_image_fill_arrays(frameYUV->data, frameYUV->linesize, outBuffer, codecCtx->pix_fmt, 1280,720, 1);
+
+    SwsContext* swsCtx = sws_getContext(codecCtx->width,codecCtx->height, codecCtx->pix_fmt,
+                                    1280,720, codecCtx->pix_fmt,
+                                    SWS_BICUBIC, nullptr, nullptr, nullptr);
+    
+    std::ofstream ofs("out.yuv", std::ios::out);
+    int got_pic = 0;
+    while (av_read_frame(m_fmtCtx, packet) >= 0 && got_pic == 0)
+    {
+        AV_LOG_D("packet size %d", packet->size);
+        if (packet->stream_index == videoStreamIdx)
+        {
+            int res = avcodec_send_packet(codecCtx, packet);
+            while (res >= 0)
+            {
+                res = avcodec_receive_frame(codecCtx, frame);
+                AV_LOG_D("res = %d", res);
+
+                if (res == AVERROR(EAGAIN) || res == AVERROR_EOF)
+                {
+                    break;
+                }
+                else if (res < 0)
+                {
+                    AV_LOG_E("legitimate encoding errors");
+                    return;
+                }
+                int outH = sws_scale(swsCtx, frame->data, frame->linesize, 0, codecCtx->height,
+                          frameYUV->data, frameYUV->linesize);
+                int y_size = 1280 * 720;
+                int u_size = y_size / 4;
+                int v_size = y_size / 4;
+                ofs.write(reinterpret_cast<char*>(frameYUV->data[0]), y_size);
+                ofs.write(reinterpret_cast<char*>(frameYUV->data[1]), u_size);
+                ofs.write(reinterpret_cast<char*>(frameYUV->data[2]), v_size);
+                AV_LOG_D("write yuv success!!!, out h = %d", outH);
+                got_pic = 1;
+            }
+        }
+        av_packet_unref(packet);
+    }
+
+    av_frame_free(&frame);
+    av_packet_free(&packet);
     avcodec_close(codecCtx);
 }
