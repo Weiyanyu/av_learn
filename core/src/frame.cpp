@@ -31,7 +31,14 @@ Frame::Frame(const FrameParam& initParam)
     m_avFrame->channel_layout = initParam.channelLayout;
     m_avFrame->format = initParam.format;
 
-    av_frame_get_buffer(m_avFrame, 0);
+    if (m_avFrame->nb_samples < 32)
+    {
+        av_frame_get_buffer(m_avFrame, 16);
+    }
+    else
+    {
+        av_frame_get_buffer(m_avFrame, 0);
+    }
     if (!m_avFrame->data[0])
     {
         av_frame_free(&m_avFrame);
@@ -60,3 +67,11 @@ void Frame::writeAudioData(uint8_t** audioData, int32_t audioDataSize)
     memcpy((void*)m_avFrame->data[0], audioData[0], audioDataSize);
 }
 
+int32_t Frame::getLineSize(int idx) const
+{
+    if (!m_valid)
+    {
+        return -1;
+    }
+    return m_avFrame->linesize[idx]; 
+}

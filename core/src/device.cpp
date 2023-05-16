@@ -121,7 +121,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         AV_LOG_E("Failed to alloc packet");
         return;
     }
-
+    AV_LOG_D("frame line size %d", frame.getAVFrame()->linesize[0]);
     do
     {
         recordCnt--;
@@ -275,7 +275,7 @@ void Device::readVideoData()
     SwsContext* swsCtx = sws_getContext(codecCtx->width,codecCtx->height, codecCtx->pix_fmt,
                                     1280,720, codecCtx->pix_fmt,
                                     SWS_BICUBIC, nullptr, nullptr, nullptr);
-    
+    // AV_LOG_D("frame line size %d yuv frame line size %d", frame->linesize[0],frameYUV->linesize[0]);
     std::ofstream ofs("out.yuv", std::ios::out);
     int got_pic = 0;
     while (av_read_frame(m_fmtCtx, packet) >= 0 && got_pic == 0)

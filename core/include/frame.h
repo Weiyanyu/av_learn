@@ -25,8 +25,11 @@ public:
     ~Frame();
 public:
     bool isValid() const { return m_valid; }
+    int32_t getLineSize(int idx) const;
+    
     AVFrame* getAVFrame() const { return m_avFrame; }
     void writeAudioData(uint8_t** audioData, int32_t audioDataSize);
+    
 private:
     AVFrame* m_avFrame;
     bool m_valid;
