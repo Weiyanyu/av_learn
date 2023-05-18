@@ -68,6 +68,7 @@ SwrConvertor::~SwrConvertor()
     AV_LOG_D("release resource of SwrConvertor");
     if (m_swrCtx)
     {
+        AV_LOG_D("release m_swrCtx");
         swr_free(&m_swrCtx);
     }
 
@@ -81,7 +82,7 @@ std::pair<uint8_t**, int> SwrConvertor::convert(uint8_t** srcData, int srcSize, 
 {
     if (!m_swrCtx) return {nullptr, 0};
 
-    int nbSampleOutput = swr_convert(m_swrCtx,       //重采样的上下文
+    int nbSampleOutput = swr_convert(m_swrCtx,      //重采样的上下文
                 dstData,                           //输出结果缓冲区
                 outSamples,                        //每个通道的采样数
                 (const uint8_t **)srcData,         //输入缓冲区

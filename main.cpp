@@ -58,8 +58,8 @@ int main()
     device.audioRecord("out.aac", swrCtxParam, encoderParam);
 
     Device device2("/home/yeonon/learn/av/demo/sample-5s.mp4", DeviceType::FILE);
-    // device2.readVideoData();
-    // device2.readAudioData();
+    device2.readVideoData();
+    device2.readAudioData();
 
     return 0;
 }

@@ -62,6 +62,15 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
         AV_LOG_D("success to open audio device(%s)", m_deviceName.c_str());
     }
 
+    if (deviceType == DeviceType::FILE)
+    {
+        if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
+        {
+            AV_LOG_E("can't read audio stream info");
+            return;
+        }
+    }
+
 }
 Device::~Device()
 {
@@ -105,7 +114,12 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     int outSamples = std::ceil(audioPacketSize / outChannels / outSampleSize);
 
     int outputBufferSize = outSampleSize * outChannels * outSamples;
-    uint8_t* dstData = static_cast<uint8_t*>(av_malloc(outSamples));
+    uint8_t* dstData = static_cast<uint8_t*>(av_malloc(outputBufferSize));
+    if (dstData == nullptr)
+    {
+        AV_LOG_D("alloc dst buffer error");
+        return;
+    }
 
 
     AV_LOG_D("outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
@@ -198,18 +212,12 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     av_packet_free(&newPkt);
     if (dstData)
     {
-        av_free(dstData);
+        av_freep(&dstData);
     }
 }
 
 void Device::readAudioData()
 {
-    if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
-    {
-        AV_LOG_E("can't read audio stream info");
-        return;
-    }
-
     int audioStreamIdx = -1;
     for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
     {
@@ -358,18 +366,18 @@ void Device::readAudioData()
     avcodec_close(codecCtx);
     if (dstData)
     {
-        av_free(dstData);
+        av_freep(&dstData);
     }
 
 }
 
 void Device::readVideoData()
 {
-    if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
-    {
-        AV_LOG_E("can't read video stream info");
-        return;
-    }
+    // if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
+    // {
+    //     AV_LOG_E("can't read video stream info");
+    //     return;
+    // }
 
     int videoStreamIdx = -1;
     for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
