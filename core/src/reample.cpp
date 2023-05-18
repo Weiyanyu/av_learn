@@ -32,8 +32,6 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
     m_inSampleSize = av_get_bytes_per_sample(swrParam.in_sample_fmt);
     m_outSampleSize = av_get_bytes_per_sample(swrParam.out_sample_fmt);
     
-    m_inSamples = std::ceil(packetSize / m_inChannel / m_inSampleSize);
-    m_outSamples = std::ceil(packetSize / m_outChannel / m_outSampleSize);
 
     m_swrCtx = swr_alloc_set_opts(
         nullptr, 
@@ -59,25 +57,10 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
         return;
     }
 
-    int tempLineSize = 0;
-    int inAlgin = 0;
-    int outAlgin = 0;
-    if (m_inSamples < 32)
-    {
-        inAlgin = m_inSamples;
-    }
-    if (m_outSamples < 32)
-    {
-        outAlgin = m_outSamples;
-    }
-    av_samples_alloc_array_and_samples(&m_srcData, &m_srcLineSize, m_inChannel, m_inSamples, swrParam.in_sample_fmt, inAlgin);
-    av_samples_alloc_array_and_samples(&m_dstData, &m_dstLineSize, m_outChannel, m_outSamples, swrParam.out_sample_fmt, outAlgin);
-    av_samples_alloc_array_and_samples(&m_tempData, &tempLineSize, m_outChannel, m_outSamples * 4, swrParam.out_sample_fmt, 0);
-    
+    m_tempData = static_cast<uint8_t*>(av_malloc(swrParam.fullOutputBufferSize * TEMP_BUFFER_RATIO));
     m_curOutputBufferSize = 0;
-    m_fullOutputBufferSize = av_samples_get_buffer_size(NULL, m_outChannel, m_outSamples, swrParam.out_sample_fmt, outAlgin);
-    AV_LOG_D("src line size %d dstLineSize %d m_inSamples %d, m_outSamples %d tempLineSize %d m_fullOutputBufferSize %d", m_srcLineSize, m_dstLineSize, m_inSamples, m_outSamples, tempLineSize, m_fullOutputBufferSize);
-
+    m_fullOutputBufferSize = swrParam.fullOutputBufferSize;
+    AV_LOG_D("tempBufferSize %d m_fullOutputBufferSize %d", swrParam.fullOutputBufferSize * TEMP_BUFFER_RATIO, m_fullOutputBufferSize);
 }
 
 SwrConvertor::~SwrConvertor()
@@ -87,52 +70,22 @@ SwrConvertor::~SwrConvertor()
     {
         swr_free(&m_swrCtx);
     }
-    if (m_srcData)
-    {
-        av_freep(&m_srcData[0]);
-        av_free(m_srcData);
-    }
-    if (m_dstData)
-    {
-        av_freep(&m_dstData[0]);
-        av_free(m_dstData);
-    }
 
     if (m_tempData)
     {
-        av_freep(&m_tempData[0]);
         av_free(m_tempData);
     }
 }
 
-std::pair<uint8_t**, int> SwrConvertor::convert(uint8_t* data, int size)
+std::pair<uint8_t**, int> SwrConvertor::convert(uint8_t** srcData, int srcSize, uint8_t** dstData, int inSamples, int outSamples)
 {
     if (!m_swrCtx) return {nullptr, 0};
-    memcpy(static_cast<void*>(m_srcData[0]), static_cast<void*>(data), size);
-
-    // create temp data, receive swrConvetr data
-    uint8_t** newData = nullptr;
-    int linesize = 0;
-    if (m_outSamples < 32)
-    {
-        av_samples_alloc_array_and_samples(&newData, &linesize, m_outChannel, m_outSamples, m_ctxParam.out_sample_fmt, m_outSamples);
-    }
-    else
-    {
-        av_samples_alloc_array_and_samples(&newData, &linesize, m_outChannel, m_outSamples, m_ctxParam.out_sample_fmt, 0);
-    }
-    if (!newData || !newData[0])
-    {
-        AV_LOG_E("alloc newData error");
-        return {nullptr, 0};
-    }
 
     int nbSampleOutput = swr_convert(m_swrCtx,       //重采样的上下文
-                newData,                           //输出结果缓冲区
-                m_outSamples,                        //每个通道的采样数
-                (const uint8_t **)m_srcData,         //输入缓冲区
-                m_inSamples);                        //输入单个通道的采样数
-
+                dstData,                           //输出结果缓冲区
+                outSamples,                        //每个通道的采样数
+                (const uint8_t **)srcData,         //输入缓冲区
+                inSamples);                        //输入单个通道的采样数
 
     if (nbSampleOutput < 0)
     {
@@ -142,38 +95,29 @@ std::pair<uint8_t**, int> SwrConvertor::convert(uint8_t* data, int size)
         return {nullptr, 0};
     }
     int outBufferSize = nbSampleOutput * m_outChannel * m_outSampleSize;
-    // AV_LOG_D("m_outChannel %d outBufferSize %d nbSampleOutput %d m_inSamples %d m_outSamples %d linesize %d", m_outChannel, outBufferSize, nbSampleOutput, m_inSamples, m_outSamples, linesize);
+    memcpy(m_tempData + m_curOutputBufferSize, dstData[0], outBufferSize);
 
-    memcpy((void**)(m_tempData[0] + m_curOutputBufferSize), newData[0], outBufferSize);
     m_curOutputBufferSize += outBufferSize;
 
     int nbSampleRemain = 0;
-    while ((nbSampleRemain = swr_convert(m_swrCtx, newData, m_outSamples, NULL, 0)) > 0)
+    while ((nbSampleRemain = swr_convert(m_swrCtx, dstData, outSamples, NULL, 0)) > 0)
     {
-        
         int remainOutputBufferSize = nbSampleRemain * m_outChannel * m_outSampleSize;
-        AV_LOG_D("nbSampleRemain %d remain buffer sieze %d", nbSampleRemain, remainOutputBufferSize);
-        memcpy((void**)(m_tempData[0] + m_curOutputBufferSize), newData[0], remainOutputBufferSize);
+        memcpy(m_tempData + m_curOutputBufferSize, dstData[0], remainOutputBufferSize);
         m_curOutputBufferSize += remainOutputBufferSize;
-    }
-
-    if (newData)
-    {
-        av_freep(&newData[0]);
-        av_free(newData);
     }
 
     if (m_curOutputBufferSize >= m_fullOutputBufferSize)
     {
-        memcpy((void**)(m_dstData[0]), m_tempData[0], m_fullOutputBufferSize);
+        memcpy(dstData[0], m_tempData, m_fullOutputBufferSize);
         m_curOutputBufferSize -= m_fullOutputBufferSize;
-        memcpy((void**)(m_tempData[0]), m_tempData[0] + m_fullOutputBufferSize, m_curOutputBufferSize);
-        return {m_dstData, m_fullOutputBufferSize};
+        memcpy(m_tempData, m_tempData + m_fullOutputBufferSize, m_curOutputBufferSize);
+        return {dstData, m_fullOutputBufferSize};
     }
     return {nullptr, 0};
 }
 
-std::pair<uint8_t**, int> SwrConvertor::flushRemain()
+std::pair<uint8_t**, int> SwrConvertor::flushRemain(uint8_t** dstData)
 {
     if (m_curOutputBufferSize > 0)
     {
@@ -186,11 +130,21 @@ std::pair<uint8_t**, int> SwrConvertor::flushRemain()
         {
             outBufferSize = m_curOutputBufferSize;
         }
-        memcpy((void**)(m_dstData[0]), m_tempData[0], outBufferSize);
+        memcpy(dstData[0], m_tempData, outBufferSize);
         m_curOutputBufferSize -= outBufferSize;
         if (m_curOutputBufferSize > 0)
-            memcpy((void**)(m_tempData[0]), m_tempData[0] + outBufferSize, m_curOutputBufferSize);
-        return {m_dstData, outBufferSize};
+            memcpy(m_tempData, m_tempData + outBufferSize, m_curOutputBufferSize);
+        return {dstData, outBufferSize};
     }
     return {nullptr, 0}; 
+}
+
+int64_t SwrConvertor::calcNBSample(int inSampleRate, int inNBSample, int outSampleRate)
+{
+    if (!enable())
+    {
+        return -1;
+    }
+    return av_rescale_rnd(swr_get_delay(m_swrCtx, inSampleRate) + inNBSample,
+                                    outSampleRate,inSampleRate,AV_ROUND_UP);
 }

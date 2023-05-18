@@ -23,7 +23,7 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
     AVCodec* codec = avcodec_find_encoder_by_name(initParam.codecName.c_str());
     m_codecCtx = avcodec_alloc_context3(codec);
     if (m_codecCtx == nullptr)
-    {
+    { 
         AV_LOG_E("Failed to alloc AVCodecContext with codec(%s)", initParam.codecName.c_str());
         return;
     }

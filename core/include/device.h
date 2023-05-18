@@ -27,7 +27,9 @@ public:
 
     ~Device();
 
-    void audioRecord(const std::string& outFilename, const SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam);
+    void audioRecord(const std::string& outFilename, SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam);
+    void readAudioData();
+    
     void readVideoData();
 
 private:

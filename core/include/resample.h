@@ -8,6 +8,7 @@ extern "C"
 #include <libavutil/samplefmt.h>
 }
 
+#define TEMP_BUFFER_RATIO 2
 struct SwrContextParam
 {
     int64_t out_ch_layout;
@@ -18,7 +19,9 @@ struct SwrContextParam
     int  in_sample_rate;
     int log_offset;
     void *log_ctx;
+    int fullOutputBufferSize = -1;    
 };
+
 
 class SwrContext;
 class SwrConvertor
@@ -38,18 +41,17 @@ public:
 
 
 public:
-    bool enable() const { return m_enable; }
-    std::pair<uint8_t**, int> convert(uint8_t* data, int size);
+    bool enable() const { return m_enable && m_swrCtx != nullptr; }
+    std::pair<uint8_t**, int> convert(uint8_t** srcData, int srcSize, uint8_t** dstData, int inSamples, int outSamples);
     
     bool hasRemain() const { return m_curOutputBufferSize > 0; }
-    std::pair<uint8_t**, int> flushRemain();
+    std::pair<uint8_t**, int> flushRemain(uint8_t** dstData);
+
+    int64_t calcNBSample(int inSampleRate, int inNBSample, int outSampleRate);
 private:
     bool m_enable = false;
     SwrContext* m_swrCtx = nullptr;
-
-    uint8_t** m_srcData = nullptr;
-    uint8_t** m_dstData = nullptr;
-    uint8_t** m_tempData = nullptr;
+    uint8_t* m_tempData = nullptr;
 
 
     // in/out param
@@ -57,8 +59,6 @@ private:
     int m_outChannel = 0;
     int m_inSampleSize = 0;
     int m_outSampleSize = 0;
-    int m_inSamples = 0;
-    int m_outSamples = 0;
     SwrContextParam m_ctxParam;
 
     int m_srcLineSize = 0;

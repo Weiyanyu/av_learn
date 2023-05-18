@@ -71,7 +71,7 @@ Device::~Device()
     }
 }
 
-void Device::audioRecord(const std::string& outFilename, const SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam)
+void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam)
 {
     if (m_deviceType != DeviceType::AUDIO)
     {
@@ -97,6 +97,19 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         return;
     }
 
+    int inSampleSize = av_get_bytes_per_sample(swrParam.in_sample_fmt);
+    int inChannels = av_get_channel_layout_nb_channels(swrParam.in_ch_layout);
+    int outSampleSize = av_get_bytes_per_sample(swrParam.out_sample_fmt);
+    int outChannels = av_get_channel_layout_nb_channels(swrParam.out_ch_layout);
+    int inSamples = std::ceil(audioPacketSize / inChannels / inSampleSize);
+    int outSamples = std::ceil(audioPacketSize / outChannels / outSampleSize);
+
+    int outputBufferSize = outSampleSize * outChannels * outSamples;
+    uint8_t* dstData = static_cast<uint8_t*>(av_malloc(outSamples));
+
+
+    AV_LOG_D("outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
+    swrParam.fullOutputBufferSize = outputBufferSize;
     //1. resample
     SwrConvertor swrConvertor(swrParam, audioPacketSize);
     
@@ -104,8 +117,6 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
     AudioCodec audioCodec(audioEncodeParam);
 
     //3. create a frame
-    // outChannel = 
-    // frameNbSample = std::ceil(audioPacketSize / m_outChannel / m_outSampleSize);
     FrameParam frameParam = 
     {
         .enable = audioCodec.enable(),
@@ -122,12 +133,13 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         return;
     }
     AV_LOG_D("frame line size %d", frame.getAVFrame()->linesize[0]);
+
     do
     {
         recordCnt--;
         if (swrConvertor.enable())
         {
-            auto [outputData, outputSize] = swrConvertor.convert(audioPacket.data, audioPacket.size);
+            auto [outputData, outputSize] = swrConvertor.convert(&audioPacket.data, audioPacket.size, &dstData, inSamples, outSamples);
             if (outputData && outputSize)
             {
                 if (audioCodec.enable() && frame.isValid())
@@ -161,7 +173,7 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
 
     while (swrConvertor.hasRemain())
     {
-        auto [remainData, remainBufferSize] = swrConvertor.flushRemain();
+        auto [remainData, remainBufferSize] = swrConvertor.flushRemain(&dstData);
         AV_LOG_D("flush remain buffer size %d", remainBufferSize);
         if (remainData && remainBufferSize)
         {
@@ -183,9 +195,172 @@ void Device::audioRecord(const std::string& outFilename, const SwrContextParam& 
         audioCodec.encode(frame, newPkt, ofs, true);
     }
 
-
     av_packet_free(&newPkt);
+    if (dstData)
+    {
+        av_free(dstData);
+    }
+}
+
+void Device::readAudioData()
+{
+    if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
+    {
+        AV_LOG_E("can't read audio stream info");
+        return;
+    }
+
+    int audioStreamIdx = -1;
+    for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
+    {
+        if (m_fmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
+        {
+            audioStreamIdx = i;
+            break;
+        }
+    }
+    if (audioStreamIdx == -1)
+    {
+        AV_LOG_E("can't find audio stream.");
+        return;
+    }
+
+
+    AVCodec* codec = avcodec_find_decoder(m_fmtCtx->streams[audioStreamIdx]->codecpar->codec_id);
+    if (!codec)
+    {
+        AV_LOG_E("can't find video decode %d", m_fmtCtx->streams[audioStreamIdx]->codecpar->codec_id);
+        return;
+    }
+
+    AVCodecContext* codecCtx = avcodec_alloc_context3(codec);
+    if (!codecCtx)
+    {
+        AV_LOG_E("faild to alloc codec context");
+        return;
+    }
+    if (avcodec_parameters_to_context(codecCtx, m_fmtCtx->streams[audioStreamIdx]->codecpar) < 0)
+    {
+        AV_LOG_E("faild to replace context");
+        return;
+    }
+
+
+    if (avcodec_open2(codecCtx, codec, nullptr) < 0)
+    {
+        AV_LOG_D("faild to open decode %s", codec->name);
+        return;
+    }
+
+    AV_LOG_D("nb stream %d", m_fmtCtx->nb_streams);
+    AV_LOG_D("bit rate %d", m_fmtCtx->bit_rate);
+    AV_LOG_D("channel layout %ld", codecCtx->channel_layout);
+    AV_LOG_D("channel %d", codecCtx->channels);
+    AV_LOG_D("format %d", codecCtx->sample_fmt);
+    AV_LOG_D("codec name %s", codec->name);
+    AV_LOG_D("codec profile %s", codec->profiles->name);
+    AV_LOG_D("sample rate %d", codecCtx->sample_rate);
+
+
+    AVPacket* packet = av_packet_alloc();
+    if (!packet)
+    {
+        AV_LOG_E("can't alloct packet");
+        return;
+    }
+
+    AVFrame* frame = av_frame_alloc();
+    if (!frame)
+    {
+        AV_LOG_E("can't alloct frame");
+        return;
+    }
+
+    // pre-read a frame
+    int packetSize = 0;
+    if (av_read_frame(m_fmtCtx, packet) >= 0)
+    {
+        packetSize = packet->size;
+        AV_LOG_D("audioPacketSize %d", packetSize);
+    }
+    else
+    {
+        AV_LOG_E("can't read any frame");
+        return;
+    }
+
+    int outSampleSize = av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
+    int outChannels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
+    int outputBufferSize = outSampleSize * outChannels * 44100;
+    uint8_t* dstData = static_cast<uint8_t*>(av_malloc(outputBufferSize));
+    AV_LOG_D("outputBufferSize %d", outputBufferSize);
+
+    SwrContextParam swrCtxParam = 
+    {
+        .out_ch_layout = AV_CH_LAYOUT_STEREO,
+        .out_sample_fmt = AV_SAMPLE_FMT_S16,
+        .out_sample_rate = 44100,
+        .in_ch_layout = codecCtx->channel_layout,
+        .in_sample_fmt = codecCtx->sample_fmt,
+        .in_sample_rate = codecCtx->sample_rate,
+        .log_offset = 0,
+        .log_ctx = nullptr,
+        .fullOutputBufferSize = outputBufferSize
+    };
+    SwrConvertor swrConvertor(swrCtxParam, packetSize);
+
+    std::ofstream ofs("out2.pcm", std::ios::out);
+    do
+    {
+        if (packet->stream_index == audioStreamIdx)
+        {
+            int res = avcodec_send_packet(codecCtx, packet);
+            while (res >= 0)
+            {
+                res = avcodec_receive_frame(codecCtx, frame);
+
+                if (res == AVERROR(EAGAIN) || res == AVERROR_EOF)
+                {
+                    break;
+                }
+                else if (res < 0)
+                {
+                    AV_LOG_E("legitimate encoding errors");
+                    return;
+                }
+
+                int64_t dst_nb_samples = swrConvertor.calcNBSample(frame->sample_rate, frame->nb_samples, 44100);
+                auto [outputData, outputSize] = swrConvertor.convert(frame->data, frame->linesize[0], &dstData, frame->nb_samples, dst_nb_samples);
+                if (outputData)
+                {
+                    AV_LOG_D("write audio success!!!, outputSize %d", outputSize);
+                    ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
+                }
+
+            }
+        }
+        av_packet_unref(packet);
+    } while (av_read_frame(m_fmtCtx, packet) >= 0);
     
+    if (swrConvertor.hasRemain())
+    {
+        AV_LOG_D("start flush");
+        auto [outputData, outputSize] = swrConvertor.flushRemain(&dstData);
+        if (outputData)
+        {
+            ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
+            AV_LOG_D("write audio success!!!, nb samples %d", outputSize);
+        }
+    }
+
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    avcodec_close(codecCtx);
+    if (dstData)
+    {
+        av_free(dstData);
+    }
+
 }
 
 void Device::readVideoData()
