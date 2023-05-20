@@ -8,6 +8,19 @@ extern "C"
 #include <libavutil/channel_layout.h>
 };
 
+Frame::Frame()
+    :m_avFrame(nullptr),
+     m_valid(false)
+{
+    m_avFrame = av_frame_alloc();
+    if (!m_avFrame)
+    {
+        AV_LOG_E("Fialed to alloc frame");
+        return;
+    }
+    m_valid = true;
+    AV_LOG_D("alloc a empty frame success");
+}
 
 Frame::Frame(const FrameParam& initParam)
     :m_avFrame(nullptr),
@@ -33,7 +46,7 @@ Frame::Frame(const FrameParam& initParam)
 
     if (m_avFrame->nb_samples < 32)
     {
-        av_frame_get_buffer(m_avFrame, 16);
+        av_frame_get_buffer(m_avFrame, m_avFrame->nb_samples);
     }
     else
     {

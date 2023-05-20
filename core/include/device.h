@@ -12,7 +12,8 @@ enum class DeviceType : int
 {
     AUDIO,
     VIDEO,
-    FILE,
+    ENCAPSULATE_FILE,
+    PCM_FILE,
 };
 
 class Device
@@ -27,10 +28,15 @@ public:
 
     ~Device();
 
+    // audido
     void audioRecord(const std::string& outFilename, SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam);
-    void readAudioData();
-    
+    void readAudioDataToPCM(const std::string outputFilename, int64_t outChannelLayout, int outSampleFmt, int64_t outSampleRate);
+    void encodePCM(const std::string outputFilename);
+
     void readVideoData();
+
+private:
+    int findStreamIdxByMediaType(int mediaType);
 
 private:
     std::string m_deviceName;

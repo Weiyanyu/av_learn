@@ -22,7 +22,7 @@ extern "C"
 void initParam()
 {
     avdevice_register_all();    
-    av_log_set_level(AV_LOG_DEBUG);
+    // av_log_set_level(AV_LOG_DEBUG);
 }
 
 int main()
@@ -44,7 +44,7 @@ int main()
         .log_ctx = nullptr
     };
 
-    AudioCodecParam encoderParam =
+    AudioEncoderParam audioEncodeParam
     {
         .needEncode = true,
         .codecName = "libfdk_aac",
@@ -52,14 +52,20 @@ int main()
         .channelLayout = AV_CH_LAYOUT_STEREO,
         .sampleRate = 44100,
         .bitRate = 0,
-        .profile = FF_PROFILE_AAC_HE_V2
+        .profile = FF_PROFILE_AAC_HE_V2,
+        .byName = true,
+    };
+
+    AudioCodecParam encoderParam =
+    {
+        .encodeParam = audioEncodeParam
     };
     // start record and save output file
     device.audioRecord("out.aac", swrCtxParam, encoderParam);
 
-    Device device2("/home/yeonon/learn/av/demo/sample-5s.mp4", DeviceType::FILE);
-    device2.readVideoData();
-    device2.readAudioData();
+    Device device2("/home/yeonon/learn/av/demo/build/sample-6s.mp3", DeviceType::ENCAPSULATE_FILE);
+    // device2.readVideoData();
+    device2.readAudioDataToPCM("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
 
     return 0;
 }

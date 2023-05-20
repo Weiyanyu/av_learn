@@ -28,7 +28,7 @@ class SwrConvertor
 {
 public:
     SwrConvertor() = default;
-    SwrConvertor(const SwrContextParam& swrParam, int packetSize);
+    SwrConvertor(const SwrContextParam& swrParam);
 
 
     // dsiable copy-ctor and move-ctor

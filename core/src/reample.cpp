@@ -10,7 +10,7 @@ extern "C"
 
 
 
-SwrConvertor::SwrConvertor(const SwrContextParam& swrParam, int packetSize)
+SwrConvertor::SwrConvertor(const SwrContextParam& swrParam)
     :m_enable(false),
      m_ctxParam(swrParam)
 {

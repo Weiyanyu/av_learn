@@ -32,6 +32,7 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
 {
     // get format
     AVInputFormat* inputFormat = nullptr;
+    std::string url = deviceName;
     switch (m_deviceType)
     {
     case DeviceType::AUDIO:
@@ -40,7 +41,11 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
     case DeviceType::VIDEO:
         inputFormat = av_find_input_format("Video4Linux2");
         break;
-    case DeviceType::FILE:
+    case DeviceType::PCM_FILE:
+        url = "";
+        inputFormat = nullptr;
+        break;
+    case DeviceType::ENCAPSULATE_FILE:
         inputFormat = nullptr;
         break;
     default:
@@ -50,7 +55,7 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
 
     AVDictionary* options = nullptr;
     // open device
-    if (auto ret = avformat_open_input(&m_fmtCtx, m_deviceName.c_str(), inputFormat, &options); ret < 0)
+    if (auto ret = avformat_open_input(&m_fmtCtx, url.c_str(), inputFormat, &options); ret < 0)
     {
         char errors[1024];
         av_strerror(ret, errors, sizeof(errors));
@@ -62,7 +67,7 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
         AV_LOG_D("success to open audio device(%s)", m_deviceName.c_str());
     }
 
-    if (deviceType == DeviceType::FILE)
+    if (deviceType == DeviceType::ENCAPSULATE_FILE)
     {
         if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
         {
@@ -125,7 +130,7 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     AV_LOG_D("outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
     swrParam.fullOutputBufferSize = outputBufferSize;
     //1. resample
-    SwrConvertor swrConvertor(swrParam, audioPacketSize);
+    SwrConvertor swrConvertor(swrParam);
     
     //2. codec
     AudioCodec audioCodec(audioEncodeParam);
@@ -133,10 +138,10 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     //3. create a frame
     FrameParam frameParam = 
     {
-        .enable = audioCodec.enable(),
+        .enable = audioCodec.encodeEnable(),
         .pktSize = audioPacketSize,
-        .channelLayout = audioEncodeParam.channelLayout,
-        .format = audioEncodeParam.sampleFmt,
+        .channelLayout = audioEncodeParam.encodeParam.channelLayout,
+        .format = audioEncodeParam.encodeParam.sampleFmt,
     };
     Frame frame(frameParam);
 
@@ -148,6 +153,11 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     }
     AV_LOG_D("frame line size %d", frame.getAVFrame()->linesize[0]);
 
+    auto encodeCB = [&](AVPacket* pkt)
+    {
+        ofs.write(reinterpret_cast<char*>(pkt->data), pkt->size);
+    };
+
     do
     {
         recordCnt--;
@@ -156,10 +166,10 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
             auto [outputData, outputSize] = swrConvertor.convert(&audioPacket.data, audioPacket.size, &dstData, inSamples, outSamples);
             if (outputData && outputSize)
             {
-                if (audioCodec.enable() && frame.isValid())
+                if (audioCodec.encodeEnable() && frame.isValid())
                 {
                     frame.writeAudioData(outputData, outputSize);
-                    audioCodec.encode(frame, newPkt, ofs);
+                    audioCodec.encode(frame, newPkt, encodeCB);
                 }
                 else
                 {
@@ -170,10 +180,10 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
         }
         else
         {
-            if (audioCodec.enable() && frame.isValid())
+            if (audioCodec.encodeEnable() && frame.isValid())
             {
                 frame.writeAudioData(&audioPacket.data, audioPacket.size);
-                audioCodec.encode(frame, newPkt, ofs);
+                audioCodec.encode(frame, newPkt, encodeCB);
             }
             else
             {
@@ -191,10 +201,10 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
         AV_LOG_D("flush remain buffer size %d", remainBufferSize);
         if (remainData && remainBufferSize)
         {
-            if (audioCodec.enable() && frame.isValid())
+            if (audioCodec.encodeEnable() && frame.isValid())
             {
                 frame.writeAudioData(remainData, remainBufferSize);
-                audioCodec.encode(frame, newPkt, ofs);
+                audioCodec.encode(frame, newPkt, encodeCB);
             }
             else
             {
@@ -204,9 +214,9 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     }
 
     // flush frame
-    if (audioCodec.enable() && frame.isValid())
+    if (audioCodec.encodeEnable() && frame.isValid())
     {
-        audioCodec.encode(frame, newPkt, ofs, true);
+        audioCodec.encode(frame, newPkt, encodeCB, true);
     }
 
     av_packet_free(&newPkt);
@@ -216,141 +226,108 @@ void Device::audioRecord(const std::string& outFilename, SwrContextParam& swrPar
     }
 }
 
-void Device::readAudioData()
+void Device::readAudioDataToPCM(const std::string outputFilename, int64_t outChannelLayout, int outSampleFmt, int64_t outSampleRate)
 {
-    int audioStreamIdx = -1;
-    for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
+    if (m_deviceType != DeviceType::ENCAPSULATE_FILE)
     {
-        if (m_fmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
-        {
-            audioStreamIdx = i;
-            break;
-        }
+        AV_LOG_E("don't support read audio datat to pcm.");
+        return;
     }
+    std::ofstream ofs(outputFilename, std::ios::out);
+
+    // 1. find audio stream
+    int audioStreamIdx = findStreamIdxByMediaType(AVMediaType::AVMEDIA_TYPE_AUDIO);
     if (audioStreamIdx == -1)
     {
         AV_LOG_E("can't find audio stream.");
         return;
     }
-
-
-    AVCodec* codec = avcodec_find_decoder(m_fmtCtx->streams[audioStreamIdx]->codecpar->codec_id);
-    if (!codec)
-    {
-        AV_LOG_E("can't find video decode %d", m_fmtCtx->streams[audioStreamIdx]->codecpar->codec_id);
-        return;
-    }
-
-    AVCodecContext* codecCtx = avcodec_alloc_context3(codec);
-    if (!codecCtx)
-    {
-        AV_LOG_E("faild to alloc codec context");
-        return;
-    }
-    if (avcodec_parameters_to_context(codecCtx, m_fmtCtx->streams[audioStreamIdx]->codecpar) < 0)
-    {
-        AV_LOG_E("faild to replace context");
-        return;
-    }
-
-
-    if (avcodec_open2(codecCtx, codec, nullptr) < 0)
-    {
-        AV_LOG_D("faild to open decode %s", codec->name);
-        return;
-    }
-
     AV_LOG_D("nb stream %d", m_fmtCtx->nb_streams);
     AV_LOG_D("bit rate %d", m_fmtCtx->bit_rate);
-    AV_LOG_D("channel layout %ld", codecCtx->channel_layout);
-    AV_LOG_D("channel %d", codecCtx->channels);
-    AV_LOG_D("format %d", codecCtx->sample_fmt);
-    AV_LOG_D("codec name %s", codec->name);
-    AV_LOG_D("codec profile %s", codec->profiles->name);
-    AV_LOG_D("sample rate %d", codecCtx->sample_rate);
 
-
-    AVPacket* packet = av_packet_alloc();
-    if (!packet)
+    // 2. create audio codec
+    AudiodecoderParam decodeParam 
     {
-        AV_LOG_E("can't alloct packet");
-        return;
-    }
-
-    AVFrame* frame = av_frame_alloc();
-    if (!frame)
+        .needDecode = true,
+        .codecId = m_fmtCtx->streams[audioStreamIdx]->codecpar->codec_id,
+        .avCodecPar = m_fmtCtx->streams[audioStreamIdx]->codecpar,
+        .byId = true
+    };
+    AudioCodecParam codecParam =
     {
-        AV_LOG_E("can't alloct frame");
-        return;
-    }
+        .decodeParam = decodeParam
+    };
+    AudioCodec audioCodec(codecParam);
 
-    // pre-read a frame
-    int packetSize = 0;
-    if (av_read_frame(m_fmtCtx, packet) >= 0)
-    {
-        packetSize = packet->size;
-        AV_LOG_D("audioPacketSize %d", packetSize);
-    }
-    else
-    {
-        AV_LOG_E("can't read any frame");
-        return;
-    }
+    // 3. create packet
+    AVPacket packet;
+    av_init_packet(&packet);
 
-    int outSampleSize = av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
-    int outChannels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
-    int outputBufferSize = outSampleSize * outChannels * 44100;
+    // 4. create a frame
+    Frame frame;
+
+    // 5. calc out Buffer size
+    int outSampleSize = av_get_bytes_per_sample(static_cast<AVSampleFormat>(outSampleFmt));
+    int outChannels = av_get_channel_layout_nb_channels(outChannelLayout);
+    int outputBufferSize = outSampleSize * outChannels * outSampleRate;
     uint8_t* dstData = static_cast<uint8_t*>(av_malloc(outputBufferSize));
     AV_LOG_D("outputBufferSize %d", outputBufferSize);
 
+    // 6. create swrConvetro
     SwrContextParam swrCtxParam = 
     {
-        .out_ch_layout = AV_CH_LAYOUT_STEREO,
-        .out_sample_fmt = AV_SAMPLE_FMT_S16,
-        .out_sample_rate = 44100,
-        .in_ch_layout = codecCtx->channel_layout,
-        .in_sample_fmt = codecCtx->sample_fmt,
-        .in_sample_rate = codecCtx->sample_rate,
+        .out_ch_layout = outChannelLayout,
+        .out_sample_fmt = static_cast<AVSampleFormat>(outSampleFmt),
+        .out_sample_rate = outSampleRate,
+        .in_ch_layout = (int64_t)audioCodec.getCodecCtx(false)->channel_layout,
+        .in_sample_fmt = audioCodec.getCodecCtx(false)->sample_fmt,
+        .in_sample_rate = audioCodec.getCodecCtx(false)->sample_rate,
         .log_offset = 0,
         .log_ctx = nullptr,
         .fullOutputBufferSize = outputBufferSize
     };
-    SwrConvertor swrConvertor(swrCtxParam, packetSize);
+    SwrConvertor swrConvertor(swrCtxParam);
 
-    std::ofstream ofs("out2.pcm", std::ios::out);
-    do
+    // 7. decodec callback
+    auto decodecCB = [&](Frame& frame)
     {
-        if (packet->stream_index == audioStreamIdx)
+        if (swrConvertor.enable())
         {
-            int res = avcodec_send_packet(codecCtx, packet);
-            while (res >= 0)
+            int64_t dst_nb_samples = swrConvertor.calcNBSample(frame.getAVFrame()->sample_rate, frame.getAVFrame()->nb_samples, outSampleRate);
+            auto [outputData, outputSize] = swrConvertor.convert(frame.getAVFrame()->data, frame.getAVFrame()->linesize[0], &dstData, frame.getAVFrame()->nb_samples, dst_nb_samples);
+            
+            if (outputData)
             {
-                res = avcodec_receive_frame(codecCtx, frame);
-
-                if (res == AVERROR(EAGAIN) || res == AVERROR_EOF)
-                {
-                    break;
-                }
-                else if (res < 0)
-                {
-                    AV_LOG_E("legitimate encoding errors");
-                    return;
-                }
-
-                int64_t dst_nb_samples = swrConvertor.calcNBSample(frame->sample_rate, frame->nb_samples, 44100);
-                auto [outputData, outputSize] = swrConvertor.convert(frame->data, frame->linesize[0], &dstData, frame->nb_samples, dst_nb_samples);
-                if (outputData)
-                {
-                    AV_LOG_D("write audio success!!!, outputSize %d", outputSize);
-                    ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
-                }
-
+                AV_LOG_D("write audio success!!!, outputSize %d", outputSize);
+                ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
             }
         }
-        av_packet_unref(packet);
-    } while (av_read_frame(m_fmtCtx, packet) >= 0);
+        else
+        {
+            ofs.write(reinterpret_cast<char*>(frame.getAVFrame()->data[0]), frame.getAVFrame()->linesize[0]);
+        }
+
+    };
+
+    // 8. read and decode audio data
+    while (av_read_frame(m_fmtCtx, &packet) >= 0)
+    {
+        if (packet.stream_index == audioStreamIdx)
+        {
+            audioCodec.decode(frame, &packet, decodecCB, false);
+        }
+        av_packet_unref(&packet);
+    }
+
+    // 9. flush frame
+    if (audioCodec.decodeEnable() && frame.isValid())
+    {
+        AV_LOG_D("flush remain frame");
+        audioCodec.decode(frame, &packet, decodecCB, true);
+    }
     
-    if (swrConvertor.hasRemain())
+    // 10. flush swrConvetor remain
+    while (swrConvertor.enable() && swrConvertor.hasRemain())
     {
         AV_LOG_D("start flush");
         auto [outputData, outputSize] = swrConvertor.flushRemain(&dstData);
@@ -361,9 +338,7 @@ void Device::readAudioData()
         }
     }
 
-    av_frame_free(&frame);
-    av_packet_free(&packet);
-    avcodec_close(codecCtx);
+    // 11. release buffer
     if (dstData)
     {
         av_freep(&dstData);
@@ -371,23 +346,23 @@ void Device::readAudioData()
 
 }
 
+void Device::encodePCM(const std::string outputFilename)
+{
+	AVStream *stream = avformat_new_stream(m_fmtCtx, nullptr);
+	if (!stream)
+	{
+		printf("can't allocate new stream\n");
+		return;
+	}
+}
+
 void Device::readVideoData()
 {
-    // if (avformat_find_stream_info(m_fmtCtx,NULL) < 0)
-    // {
-    //     AV_LOG_E("can't read video stream info");
-    //     return;
-    // }
-
-    int videoStreamIdx = -1;
-    for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
+    if (m_deviceType != DeviceType::ENCAPSULATE_FILE)
     {
-        if (m_fmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
-        {
-            videoStreamIdx = i;
-            break;
-        }
+        return;
     }
+    int videoStreamIdx = findStreamIdxByMediaType(AVMediaType::AVMEDIA_TYPE_VIDEO);
     if (videoStreamIdx == -1)
     {
         AV_LOG_E("can't find video stream.");
@@ -499,4 +474,21 @@ void Device::readVideoData()
     av_frame_free(&frame);
     av_packet_free(&packet);
     avcodec_close(codecCtx);
+}
+
+
+
+int Device::findStreamIdxByMediaType(int mediaType)
+{
+    if (!m_fmtCtx) return -1;
+    int streamIdx = -1;
+    for (size_t i = 0; i < m_fmtCtx->nb_streams; i++)
+    {
+        if (m_fmtCtx->streams[i]->codecpar->codec_type == static_cast<AVMediaType>(mediaType))
+        {
+            streamIdx = i;
+            break;
+        }
+    }
+    return streamIdx;
 }
