@@ -56,8 +56,8 @@ public:
 							int64_t			  outChannelLayout,
 							int				  outSampleFmt,
 							int64_t			  outSampleRate);
-    
-    // video
+
+	// video
 	void readVideoData();
 
 private:
