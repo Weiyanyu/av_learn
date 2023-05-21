@@ -97,7 +97,7 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 
         if (avcodec_open2(m_decodeCodecCtx, decodeCodec, nullptr) < 0)
         {
-            AV_LOG_D("faild to open decode %s", decodeCodec->name);
+            AV_LOG_E("faild to open decode %s", decodeCodec->name);
             return;
         }
 

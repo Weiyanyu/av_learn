@@ -96,7 +96,7 @@ void Device::readAudio(const std::string& inFilename, const std::string& outFile
     {
         readFromStream = true;
     }
-    AV_LOG_D("read from stream %d", readFromStream);
+    AV_LOG_D("is read from stream %d", readFromStream);
 
     // 1. init param
     std::ofstream ofs(outFilename, std::ios::out);
@@ -351,12 +351,11 @@ void Device::readAudioDataToPCM(const std::string outputFilename, int64_t outCha
     // 10. flush swrConvetor remain
     while (swrConvertor.enable() && swrConvertor.hasRemain())
     {
-        AV_LOG_D("start flush");
+        AV_LOG_D("start flush swr remain");
         auto [outputData, outputSize] = swrConvertor.flushRemain(&dstData);
         if (outputData)
         {
             ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
-            AV_LOG_D("write audio success!!!, nb samples %d", outputSize);
         }
     }
 
@@ -448,14 +447,12 @@ void Device::readVideoData()
     int got_pic = 0;
     while (av_read_frame(m_fmtCtx, packet) >= 0 && got_pic == 0)
     {
-        AV_LOG_D("packet size %d", packet->size);
         if (packet->stream_index == videoStreamIdx)
         {
             int res = avcodec_send_packet(codecCtx, packet);
             while (res >= 0)
             {
                 res = avcodec_receive_frame(codecCtx, frame);
-                AV_LOG_D("res = %d", res);
 
                 if (res == AVERROR(EAGAIN) || res == AVERROR_EOF)
                 {

@@ -50,8 +50,8 @@ public:
     ~Device();
 
     // audido
-    void readAudioDataToPCM(const std::string outputFilename, int64_t outChannelLayout, int outSampleFmt, int64_t outSampleRate);
     void readAudio(const std::string& inFilename, const std::string& outFilename, SwrContextParam& swrParam, const AudioCodecParam& audioEncodeParam);
+    void readAudioDataToPCM(const std::string outputFilename, int64_t outChannelLayout, int outSampleFmt, int64_t outSampleRate);
     void readVideoData();
 
 private:
