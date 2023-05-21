@@ -6,7 +6,7 @@
 struct FrameParam
 {
     bool enable = false;
-    int pktSize;
+    int frameSize;
     uint64_t channelLayout;
     int format;
 };
@@ -25,12 +25,17 @@ public:
 
     ~Frame();
 public:
+    AVFrame* getAVFrame() const { return m_avFrame; }
+
+    // util func
+public:
+    bool writeAudioData(uint8_t** audioData, int32_t audioDataSize);
     bool isValid() const { return m_valid; }
     int32_t getLineSize(int idx) const;
-    
-    AVFrame* getAVFrame() const { return m_avFrame; }
-    void writeAudioData(uint8_t** audioData, int32_t audioDataSize);
-    
+    int format() const;
+    int channels() const;
+    int nbSamples() const;
+
 private:
     AVFrame* m_avFrame;
     bool m_valid;

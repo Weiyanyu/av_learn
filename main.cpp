@@ -61,11 +61,25 @@ int main()
         .encodeParam = audioEncodeParam
     };
     // start record and save output file
-    device.audioRecord("out.aac", swrCtxParam, encoderParam);
+    device.readAudio("", "out.aac", swrCtxParam, encoderParam);
 
     Device device2("/home/yeonon/learn/av/demo/build/sample-6s.mp3", DeviceType::ENCAPSULATE_FILE);
-    // device2.readVideoData();
+    device2.readVideoData();
     device2.readAudioDataToPCM("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
+
+    SwrContextParam swrCtxParam2 = 
+    {
+        .out_ch_layout = AV_CH_LAYOUT_STEREO,
+        .out_sample_fmt = AV_SAMPLE_FMT_S16,
+        .out_sample_rate = 44100,
+        .in_ch_layout = AV_CH_LAYOUT_STEREO,
+        .in_sample_fmt = AV_SAMPLE_FMT_S16,
+        .in_sample_rate = 44100,
+        .log_offset = 0,
+        .log_ctx = nullptr
+    };
+
+    device2.readAudio("/home/yeonon/learn/av/demo/build/out3.pcm", "out100.aac", swrCtxParam2, encoderParam);
 
     return 0;
 }
