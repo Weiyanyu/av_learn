@@ -56,13 +56,15 @@ public:
 							int64_t			  outChannelLayout,
 							int				  outSampleFmt,
 							int64_t			  outSampleRate);
+    
+    // video
 	void readVideoData();
 
 private:
 	int findStreamIdxByMediaType(int mediaType);
 	// util func
-	void readAudioDataFromHWDevice(AudioReaderParam& param);
-	void readAndWriteAudioDataFromStream(AudioReaderParam& param);
+	void readAudioFromHWDevice(AudioReaderParam& param);
+	void readAudioFromStream(AudioReaderParam& param);
 
 private:
 	std::string		 m_deviceName;

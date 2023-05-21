@@ -193,7 +193,7 @@ void Device::readAudio(const std::string&	  inFilename,
 							   .audioCodec	 = audioCodec,
 							   .frame		 = frame,
 							   .pkt			 = newPkt};
-		readAudioDataFromHWDevice(param);
+		readAudioFromHWDevice(param);
 	}
 	else
 	{
@@ -218,7 +218,7 @@ void Device::readAudio(const std::string&	  inFilename,
 							   .frame		 = frame,
 							   .pkt			 = newPkt};
 
-		readAndWriteAudioDataFromStream(param);
+		readAudioFromStream(param);
 
 		// release src buffer
 		if(srcBuffer)
@@ -259,7 +259,7 @@ void Device::readAudioDataToPCM(const std::string outputFilename,
 		return;
 	}
 	AV_LOG_D("nb stream %d", m_fmtCtx->nb_streams);
-	AV_LOG_D("bit rate %d", m_fmtCtx->bit_rate);
+	AV_LOG_D("bit rate %ld", m_fmtCtx->bit_rate);
 
 	// 2. create audio codec
 	AudiodecoderParam decodeParam{.needDecode = true,
@@ -484,7 +484,7 @@ void Device::readVideoData()
 	avcodec_close(codecCtx);
 }
 
-void Device::readAudioDataFromHWDevice(AudioReaderParam& param)
+void Device::readAudioFromHWDevice(AudioReaderParam& param)
 {
 	if(m_deviceType != DeviceType::AUDIO)
 	{
@@ -563,7 +563,7 @@ void Device::readAudioDataFromHWDevice(AudioReaderParam& param)
 	}
 }
 
-void Device::readAndWriteAudioDataFromStream(AudioReaderParam& param)
+void Device::readAudioFromStream(AudioReaderParam& param)
 {
 	auto cb = [&](AVPacket* pkt) {
 		param.ofs.write(reinterpret_cast<char*>(pkt->data), pkt->size);
