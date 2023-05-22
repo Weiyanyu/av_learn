@@ -6,6 +6,7 @@
 #include <string>
 
 class AVCodecContext;
+class AVCodec;
 class AVPacket;
 class Frame;
 class AVCodecParameters;
@@ -87,7 +88,17 @@ public:
 		return m_decodeEnable;
 	}
 
-	AVCodecContext* getCodecCtx(bool isEncode);
+public:
+	// util func
+	AVCodecContext* getCodecCtx(bool isEncode) const;
+
+	int		 format(bool isEncode) const;
+	int		 frameSize(bool isEncode) const;
+	uint64_t channelLayout(bool isEncode) const;
+	int		 sampleRate(bool isEncode) const;
+
+private:
+	bool isSupport(AVCodec* codec, int format, uint64_t channelLayout, int64_t sampleRate);
 
 private:
 	AVCodecContext* m_encodeCodecCtx = nullptr;

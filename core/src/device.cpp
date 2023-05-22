@@ -126,7 +126,7 @@ void Device::readAudio(const std::string&	  inFilename,
 		{
 			// need encode
 			frameSize =
-				audioCodec.getCodecCtx(true)->frame_size *
+				audioCodec.frameSize(true) *
 				av_get_channel_layout_nb_channels(audioEncodeParam.encodeParam.channelLayout) *
 				av_get_bytes_per_sample((AVSampleFormat)audioEncodeParam.encodeParam.sampleFmt);
 		}
@@ -268,6 +268,11 @@ void Device::readAudioDataToPCM(const std::string outputFilename,
 								  .byId		  = true};
 	AudioCodecParam	  codecParam = {.decodeParam = decodeParam};
 	AudioCodec		  audioCodec(codecParam);
+	if(!audioCodec.decodeEnable())
+	{
+		AV_LOG_D("can't use decode. please check it");
+		return;
+	}
 
 	// 3. create packet
 	AVPacket packet;
@@ -287,12 +292,11 @@ void Device::readAudioDataToPCM(const std::string outputFilename,
 	SwrContextParam swrCtxParam = {.out_ch_layout	= outChannelLayout,
 								   .out_sample_fmt	= static_cast<AVSampleFormat>(outSampleFmt),
 								   .out_sample_rate = outSampleRate,
-								   .in_ch_layout =
-									   (int64_t)audioCodec.getCodecCtx(false)->channel_layout,
-								   .in_sample_fmt  = audioCodec.getCodecCtx(false)->sample_fmt,
-								   .in_sample_rate = audioCodec.getCodecCtx(false)->sample_rate,
-								   .log_offset	   = 0,
-								   .log_ctx		   = nullptr,
+								   .in_ch_layout	= (int64_t)audioCodec.channelLayout(false),
+								   .in_sample_fmt	= (AVSampleFormat)audioCodec.format(false),
+								   .in_sample_rate	= audioCodec.sampleRate(false),
+								   .log_offset		= 0,
+								   .log_ctx			= nullptr,
 								   .fullOutputBufferSize = outputBufferSize};
 	SwrConvertor	swrConvertor(swrCtxParam);
 
