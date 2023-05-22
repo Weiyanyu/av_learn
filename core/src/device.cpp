@@ -573,6 +573,7 @@ void Device::readAudioFromStream(AudioReaderParam& param)
 		param.ofs.write(reinterpret_cast<char*>(pkt->data), pkt->size);
 	};
 	int n = 0;
+	int pts = 0;
 	while((n = param.ifs.readsome((char*)param.srcData, param.frameSize)) > 0)
 	{
 		if(param.swrConvertor.enable())
@@ -587,6 +588,8 @@ void Device::readAudioFromStream(AudioReaderParam& param)
 					{
 						return;
 					}
+					pts += param.frame.getAVFrame()->nb_samples;
+					param.frame.getAVFrame()->pts = pts;
 					param.audioCodec.encode(param.frame, param.pkt, cb, false);
 				}
 				else
@@ -603,6 +606,8 @@ void Device::readAudioFromStream(AudioReaderParam& param)
 				{
 					return;
 				}
+				pts += param.frame.getAVFrame()->nb_samples;
+				param.frame.getAVFrame()->pts = pts;
 				param.audioCodec.encode(param.frame, param.pkt, cb, false);
 			}
 			else
