@@ -59,7 +59,12 @@ public:
 							int64_t			  outSampleRate);
 
 	// video
-	void readVideoDataToYUV();
+	void readVideoDataToYUV(const std::string& inFilename,
+							const std::string& outFilename,
+							const CodecParam&  videoEncodeParam,
+							int				   outWidth,
+							int				   outHeight,
+							int				   outPixFormat);
 
 private:
 	int findStreamIdxByMediaType(int mediaType);

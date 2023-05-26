@@ -388,13 +388,7 @@ const char* Codec::codecName(bool isEncode) const
 
 AudioCodec::AudioCodec(const CodecParam& initParam)
 	: Codec(initParam, CodecMediaType::CODEC_MEDIA_AUDIO)
-{
-	// getCodecCtx(false)
-
-	// AV_LOG_D("video w/h %d/%d", codecCtx->width, codecCtx->height);
-	// AV_LOG_D("video codec name %s", codec->name);
-	// AV_LOG_D("video AVPixelFormat %d", codecCtx->pix_fmt);
-}
+{ }
 
 AudioCodec::~AudioCodec() { }
 
@@ -402,7 +396,11 @@ AudioCodec::~AudioCodec() { }
 
 VideoCodec::VideoCodec(const CodecParam& initParam)
 	: Codec(initParam, CodecMediaType::CODEC_MEDIA_VIDEO)
-{ }
+{
+	AV_LOG_D("video w/h %d/%d", width(false), height(false));
+	AV_LOG_D("video codec name %s", codecName(false));
+	AV_LOG_D("video AVPixelFormat %d", pixFormat(false));
+}
 
 VideoCodec::~VideoCodec() { }
 

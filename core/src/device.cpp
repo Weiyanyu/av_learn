@@ -21,7 +21,9 @@ extern "C"
 
 #include <fstream>
 #include <iostream>
-#include <stdio.h>
+
+#include <sys/stat.h>
+#include <unistd.h>
 
 Device::Device()
 	: m_deviceName("")
@@ -359,107 +361,6 @@ void Device::readAudioDataToPCM(const std::string outputFilename,
 	}
 }
 
-void Device::readVideoDataToYUV()
-{
-	if(m_deviceType != DeviceType::ENCAPSULATE_FILE)
-	{
-		return;
-	}
-	int videoStreamIdx = findStreamIdxByMediaType(AVMediaType::AVMEDIA_TYPE_VIDEO);
-	if(videoStreamIdx == -1)
-	{
-		AV_LOG_E("can't find video stream.");
-		return;
-	}
-
-	DecoderParam decodeParam{.needDecode = true,
-							 .codecId	 = m_fmtCtx->streams[videoStreamIdx]->codecpar->codec_id,
-							 .avCodecPar = m_fmtCtx->streams[videoStreamIdx]->codecpar,
-							 .byId		 = true};
-	CodecParam	 codecParam = {.decodeParam = decodeParam};
-	VideoCodec	 videoCodec(codecParam);
-
-	AV_LOG_D("video format %s", m_fmtCtx->iformat->name);
-	AV_LOG_D("video time %ld", (m_fmtCtx->duration) / 1000000);
-	AV_LOG_D("video w/h %d/%d", videoCodec.width(false), videoCodec.height(false));
-	AV_LOG_D("video codec name %s", videoCodec.codecName(false));
-	AV_LOG_D("video AVPixelFormat %d", videoCodec.pixFormat(false));
-
-	AVPacket* packet = av_packet_alloc();
-	if(!packet)
-	{
-		AV_LOG_E("can't alloct packet");
-		return;
-	}
-
-	Frame frame;
-	Frame frameYUV;
-
-	// AVFrame* frame = av_frame_alloc();
-	// if(!frame)
-	// {
-	// 	AV_LOG_E("can't alloct frame");
-	// 	return;
-	// }
-
-	// AVFrame* frameYUV = av_frame_alloc();
-	// if(!frameYUV)
-	// {
-	// 	AV_LOG_E("can't alloct frame yuv");
-	// 	return;
-	// }
-
-	int picBufferSize =
-		av_image_get_buffer_size((AVPixelFormat)videoCodec.pixFormat(false), 1280, 720, 1);
-	uint8_t* outBuffer = (uint8_t*)av_malloc(picBufferSize);
-	frameYUV.writeImageData(outBuffer, videoCodec.pixFormat(false), 1280, 720);
-
-	SwsContext* swsCtx = sws_getContext(videoCodec.width(false),
-										videoCodec.height(false),
-										(AVPixelFormat)videoCodec.pixFormat(false),
-										1280,
-										720,
-										(AVPixelFormat)videoCodec.pixFormat(false),
-										SWS_BICUBIC,
-										nullptr,
-										nullptr,
-										nullptr);
-	// AV_LOG_D("frame line size %d yuv frame line size %d",
-	// frame->linesize[0],frameYUV->linesize[0]);
-	std::ofstream ofs("out.yuv", std::ios::out);
-	int			  got_pic = 0;
-
-	// 7. decodec callback
-	auto decodecCB = [&](Frame& frame) {
-		int outH   = sws_scale(swsCtx,
-							   frame.data(),
-							   frame.lineSize(),
-							   0,
-							   videoCodec.height(false),
-							   frameYUV.data(),
-							   frameYUV.lineSize());
-		int y_size = 1280 * 720;
-		int u_size = y_size / 4;
-		int v_size = y_size / 4;
-		ofs.write(reinterpret_cast<char*>(frameYUV.data()[0]), y_size);
-		ofs.write(reinterpret_cast<char*>(frameYUV.data()[1]), u_size);
-		ofs.write(reinterpret_cast<char*>(frameYUV.data()[2]), v_size);
-		AV_LOG_D("write yuv success!!!, out h = %d", outH);
-		got_pic = 1;
-	};
-
-	while(av_read_frame(m_fmtCtx, packet) >= 0 && got_pic == 0)
-	{
-		if(packet->stream_index == videoStreamIdx)
-		{
-			videoCodec.decode(frame, packet, decodecCB, false);
-		}
-		av_packet_unref(packet);
-	}
-
-	av_packet_free(&packet);
-}
-
 void Device::readAudioFromHWDevice(AudioReaderParam& param)
 {
 	if(m_deviceType != DeviceType::AUDIO)
@@ -615,6 +516,108 @@ void Device::readAudioFromStream(AudioReaderParam& param)
 		param.audioCodec.encode(param.frame, param.pkt, cb, true);
 	}
 }
+
+void Device::readVideoDataToYUV(const std::string& inFilename,
+								const std::string& outFilename,
+								const CodecParam&  videoEncodeParam,
+								int				   outWidth,
+								int				   outHeight,
+								int				   outPixFormat)
+{
+	if(m_deviceType != DeviceType::ENCAPSULATE_FILE)
+	{
+		return;
+	}
+	int videoStreamIdx = findStreamIdxByMediaType(AVMediaType::AVMEDIA_TYPE_VIDEO);
+	if(videoStreamIdx == -1)
+	{
+		AV_LOG_E("can't find video stream.");
+		return;
+	}
+
+	DecoderParam decodeParam{.needDecode = true,
+							 .codecId	 = m_fmtCtx->streams[videoStreamIdx]->codecpar->codec_id,
+							 .avCodecPar = m_fmtCtx->streams[videoStreamIdx]->codecpar,
+							 .byId		 = true};
+	CodecParam	 codecParam = {.decodeParam = decodeParam};
+	VideoCodec	 videoCodec(codecParam);
+
+	AV_LOG_D("video format %s", m_fmtCtx->iformat->name);
+	AV_LOG_D("video time %ld", (m_fmtCtx->duration) / 1000000);
+
+	AVPacket* packet = av_packet_alloc();
+	if(!packet)
+	{
+		AV_LOG_E("can't alloct packet");
+		return;
+	}
+	Frame frame;
+	Frame frameYUV;
+
+	int outputBufferSize =
+		av_image_get_buffer_size((AVPixelFormat)outPixFormat, outWidth, outHeight, 1);
+	AV_LOG_D("outputBufferSize %d", outputBufferSize);
+	uint8_t* outBuffer = (uint8_t*)av_malloc(outputBufferSize);
+	frameYUV.writeImageData(outBuffer, videoCodec.pixFormat(false), outWidth, outHeight);
+
+	SwsContext* swsCtx = sws_getContext(videoCodec.width(false),
+										videoCodec.height(false),
+										(AVPixelFormat)videoCodec.pixFormat(false),
+										outWidth,
+										outHeight,
+										(AVPixelFormat)outPixFormat,
+										SWS_BICUBIC,
+										nullptr,
+										nullptr,
+										nullptr);
+
+	int picCnt = 0;
+	// create dir
+	if(access(outFilename.c_str(), F_OK) == -1)
+	{
+		mkdir(outFilename.c_str(), S_IRWXO | S_IRWXG | S_IRWXU);
+	}
+
+	// 7. decodec callback
+	auto decodecCB = [&](Frame& frame) {
+		std::string	  outName = outFilename + "/" + std::to_string(picCnt) + ".yuv";
+		std::ofstream ofs(outName, std::ios::out);
+		sws_scale(swsCtx,
+				  frame.data(),
+				  frame.lineSize(),
+				  0,
+				  videoCodec.height(false),
+				  frameYUV.data(),
+				  frameYUV.lineSize());
+		if(outPixFormat == AVPixelFormat::AV_PIX_FMT_YUV420P)
+		{
+			int y_size = outWidth * outHeight;
+			int u_size = y_size / 4;
+			int v_size = y_size / 4;
+			ofs.write(reinterpret_cast<char*>(frameYUV.data()[0]), y_size);
+			ofs.write(reinterpret_cast<char*>(frameYUV.data()[1]), u_size);
+			ofs.write(reinterpret_cast<char*>(frameYUV.data()[2]), v_size);
+			AV_LOG_D("write yuv: %s  w/h = %d/%d", outName.c_str(), outWidth, outHeight);
+		}
+
+		picCnt++;
+	};
+
+	while(av_read_frame(m_fmtCtx, packet) >= 0)
+	{
+		if(packet->stream_index == videoStreamIdx)
+		{
+			videoCodec.decode(frame, packet, decodecCB);
+		}
+		av_packet_unref(packet);
+	}
+
+	av_packet_free(&packet);
+
+	videoCodec.decode(frame, packet, decodecCB, true);
+}
+
+// ---------------------------- Util Function ----------------------------
 
 int Device::findStreamIdxByMediaType(int mediaType)
 {
