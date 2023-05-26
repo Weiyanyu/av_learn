@@ -5,6 +5,7 @@ extern "C"
 {
 #include <libavutil/channel_layout.h>
 #include <libavutil/frame.h>
+#include <libavutil/imgutils.h>
 };
 
 Frame::Frame()
@@ -98,11 +99,42 @@ bool Frame::writeAudioData(uint8_t** audioData, int32_t audioDataSize)
 	return true;
 }
 
-int32_t Frame::getLineSize(int idx) const
+bool Frame::writeImageData(uint8_t* imageData, int pixFormat, int width, int height)
+{
+	if(!m_valid)
+	{
+		AV_LOG_W("frame is not valid!");
+		return false;
+	}
+	av_image_fill_arrays(m_avFrame->data,
+						 m_avFrame->linesize,
+						 imageData,
+						 (AVPixelFormat)pixFormat,
+						 width,
+						 height,
+						 1);
+	return true;
+}
+
+int32_t Frame::lineSize(int idx) const
 {
 	if(!m_valid)
 		return -1;
 	return m_avFrame->linesize[idx];
+}
+
+int* Frame::lineSize() const
+{
+	if(!m_valid)
+		return nullptr;
+	return m_avFrame->linesize;
+}
+
+uint8_t** Frame::data() const
+{
+	if(!m_valid)
+		return nullptr;
+	return m_avFrame->data;
 }
 
 int Frame::format() const

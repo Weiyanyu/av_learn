@@ -13,7 +13,8 @@ class AVCodecParameters;
 
 using FrameReceiveCB  = std::function<void(Frame&)>;
 using PacketReceiveCB = std::function<void(AVPacket*)>;
-struct AudioEncoderParam
+
+struct EncoderParam
 {
 	bool		needEncode	  = false;
 	std::string codecName	  = "";
@@ -31,7 +32,7 @@ struct AudioEncoderParam
 	bool byId = false;
 };
 
-struct AudiodecoderParam
+struct DecoderParam
 {
 	bool			   needDecode = false;
 	std::string		   codecName  = "";
@@ -45,29 +46,77 @@ struct AudiodecoderParam
 	bool byId = false;
 };
 
-struct AudioCodecParam
+struct CodecParam
 {
-	AudioEncoderParam encodeParam;
-	AudiodecoderParam decodeParam;
+	EncoderParam encodeParam;
+	DecoderParam decodeParam;
+};
+
+enum CodecMediaType
+{
+	CODEC_MEDIA_UNKNOW = -1,
+	CODEC_MEDIA_AUDIO,
+	CODEC_MEDIA_VIDEO,
 };
 
 class Codec
 {
 public:
-	virtual ~Codec() { }
+	Codec(const CodecParam& initParam, CodecMediaType mediaType);
+	// dsiable copy-ctor and move-ctor
+	Codec(const Codec&) = delete;
+	Codec& operator=(const Codec) = delete;
+	Codec(Codec&&)				  = delete;
+	Codec& operator=(Codec&&) = delete;
+
+	virtual ~Codec();
 
 public:
-	virtual bool encodeEnable() const														   = 0;
-	virtual void encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush = false) = 0;
+	virtual bool encodeEnable() const
+	{
+		return m_encodeEnable;
+	}
+	virtual void encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush = false);
 
-	virtual bool decodeEnable() const														  = 0;
-	virtual void decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush = false) = 0;
+	virtual bool decodeEnable() const
+	{
+		return m_decodeEnable;
+	}
+	virtual void decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush = false);
+
+public:
+	// util func
+	AVCodecContext* getCodecCtx(bool isEncode) const;
+	AVCodec*		getCodec(bool isEncode) const;
+
+	int			format(bool isEncode) const;
+	int			frameSize(bool isEncode) const;
+	uint64_t	channelLayout(bool isEncode) const;
+	int			sampleRate(bool isEncode) const;
+	const char* codecName(bool isEncode) const;
+
+protected:
+	// bool openDecoder(AVCodecContext* ctx, const std::string& name);
+	// bool openDecoder(AVCodecContext* ctx, int codecId);
+	bool checkSupport(AVCodec* codec, const CodecParam& initParam, bool isEncode);
+	bool checkAudioSupport(AVCodec* codec, int format, uint64_t channelLayout, int64_t sampleRate);
+
+private:
+	AVCodecContext* m_encodeCodecCtx = nullptr;
+	AVCodecContext* m_decodeCodecCtx = nullptr;
+	AVCodec*		m_encodeCodec	 = nullptr;
+	AVCodec*		m_decodeCodec	 = nullptr;
+
+	bool m_encodeEnable = false;
+	bool m_decodeEnable = false;
+
+	CodecMediaType m_codecMediaType;
 };
 
 class AudioCodec : public Codec
 {
 public:
-	AudioCodec(const AudioCodecParam& initParam);
+	AudioCodec(const CodecParam& initParam);
 	// dsiable copy-ctor and move-ctor
 	AudioCodec(const AudioCodec&) = delete;
 	AudioCodec& operator=(const AudioCodec) = delete;
@@ -75,47 +124,21 @@ public:
 	AudioCodec& operator=(AudioCodec&&) = delete;
 
 	~AudioCodec();
-
-	void encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush = false) override;
-	bool encodeEnable() const override
-	{
-		return m_encodeEnable;
-	}
-
-	void decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush = false);
-	bool decodeEnable() const override
-	{
-		return m_decodeEnable;
-	}
-
-public:
-	// util func
-	AVCodecContext* getCodecCtx(bool isEncode) const;
-
-	int		 format(bool isEncode) const;
-	int		 frameSize(bool isEncode) const;
-	uint64_t channelLayout(bool isEncode) const;
-	int		 sampleRate(bool isEncode) const;
-
-private:
-	bool isSupport(AVCodec* codec, int format, uint64_t channelLayout, int64_t sampleRate);
-
-private:
-	AVCodecContext* m_encodeCodecCtx = nullptr;
-	AVCodecContext* m_decodeCodecCtx = nullptr;
-
-	bool m_encodeEnable = false;
-	bool m_decodeEnable = false;
 };
 
 class VideoCodec : public Codec
 {
 public:
-	bool encodeEnable() const override
-	{
-		return m_enable;
-	}
+	VideoCodec(const CodecParam& initParam);
+	// dsiable copy-ctor and move-ctor
+	VideoCodec(const VideoCodec&) = delete;
+	VideoCodec& operator=(const VideoCodec) = delete;
+	VideoCodec(VideoCodec&&)				= delete;
+	VideoCodec& operator=(VideoCodec&&) = delete;
+	~VideoCodec();
 
-private:
-	bool m_enable = false;
+public:
+	int width(bool isEncode) const;
+	int height(bool isEncode) const;
+	int pixFormat(bool isEncode) const;
 };

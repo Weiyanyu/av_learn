@@ -44,7 +44,7 @@ int main()
         .log_ctx = nullptr
     };
 
-    AudioEncoderParam audioEncodeParam
+    EncoderParam audioEncodeParam
     {
         .needEncode = true,
         .codecName = "libfdk_aac",
@@ -56,15 +56,15 @@ int main()
         .byName = true,
     };
 
-    AudioCodecParam encoderParam =
+    CodecParam encoderParam =
     {
         .encodeParam = audioEncodeParam
     };
     // start record and save output file
     device.readAudio("", "out.aac", swrCtxParam, encoderParam);
 
-    Device device2("/home/yeonon/learn/av/demo/build/sample-6s.mp3", DeviceType::ENCAPSULATE_FILE);
-    device2.readVideoData();
+    Device device2("/home/yeonon/learn/av/demo/sample-5s.mp4", DeviceType::ENCAPSULATE_FILE);
+    device2.readVideoDataToYUV();
     device2.readAudioDataToPCM("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
 
     SwrContextParam swrCtxParam2 = 

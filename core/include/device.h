@@ -6,6 +6,7 @@ class AVFormatContext;
 class SwrContext;
 class SwrContextParam;
 class AudioCodecParam;
+class CodecParam;
 class Frame;
 class AudioCodec;
 class AVPacket;
@@ -48,17 +49,17 @@ public:
 	~Device();
 
 	// audido
-	void readAudio(const std::string&	  inFilename,
-				   const std::string&	  outFilename,
-				   SwrContextParam&		  swrParam,
-				   const AudioCodecParam& audioEncodeParam);
+	void readAudio(const std::string& inFilename,
+				   const std::string& outFilename,
+				   SwrContextParam&	  swrParam,
+				   const CodecParam&  audioEncodeParam);
 	void readAudioDataToPCM(const std::string outputFilename,
 							int64_t			  outChannelLayout,
 							int				  outSampleFmt,
 							int64_t			  outSampleRate);
 
 	// video
-	void readVideoData();
+	void readVideoDataToYUV();
 
 private:
 	int findStreamIdxByMediaType(int mediaType);

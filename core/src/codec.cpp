@@ -10,15 +10,16 @@ extern "C"
 
 #include <ostream>
 
-AudioCodec::AudioCodec(const AudioCodecParam& initParam)
+// -------------------------- Base Codec --------------------------
+Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
 	: m_encodeCodecCtx(nullptr)
 	, m_decodeCodecCtx(nullptr)
 	, m_encodeEnable(false)
+	, m_decodeEnable(false)
+	, m_codecMediaType(mediaType)
 {
-	// encoder
 	if(initParam.encodeParam.needEncode)
 	{
-
 		AVCodec* encodeCodec = nullptr;
 		if(initParam.encodeParam.byName)
 		{
@@ -35,10 +36,7 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 			return;
 		}
 
-		if(isSupport(encodeCodec,
-					 initParam.encodeParam.sampleFmt,
-					 initParam.encodeParam.channelLayout,
-					 initParam.encodeParam.sampleRate))
+		if(checkSupport(encodeCodec, initParam, true))
 		{
 			m_encodeCodecCtx = avcodec_alloc_context3(encodeCodec);
 			if(m_encodeCodecCtx == nullptr)
@@ -47,14 +45,17 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 						 initParam.encodeParam.codecName.c_str());
 				return;
 			}
-
-			m_encodeCodecCtx->sample_fmt	 = (AVSampleFormat)initParam.encodeParam.sampleFmt;
-			m_encodeCodecCtx->channel_layout = initParam.encodeParam.channelLayout;
-			m_encodeCodecCtx->channels =
-				av_get_channel_layout_nb_channels(m_encodeCodecCtx->channel_layout);
-			m_encodeCodecCtx->sample_rate = initParam.encodeParam.sampleRate;
-			m_encodeCodecCtx->bit_rate	  = initParam.encodeParam.bitRate;
-			m_encodeCodecCtx->profile	  = initParam.encodeParam.profile;
+			// set for audio
+			if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+			{
+				m_encodeCodecCtx->sample_fmt	 = (AVSampleFormat)initParam.encodeParam.sampleFmt;
+				m_encodeCodecCtx->channel_layout = initParam.encodeParam.channelLayout;
+				m_encodeCodecCtx->channels =
+					av_get_channel_layout_nb_channels(m_encodeCodecCtx->channel_layout);
+				m_encodeCodecCtx->sample_rate = initParam.encodeParam.sampleRate;
+				m_encodeCodecCtx->bit_rate	  = initParam.encodeParam.bitRate;
+				m_encodeCodecCtx->profile	  = initParam.encodeParam.profile;
+			}
 
 			if(int ret = avcodec_open2(m_encodeCodecCtx, encodeCodec, NULL); ret < 0)
 			{
@@ -66,6 +67,7 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 				return;
 			}
 
+			m_encodeCodec  = encodeCodec;
 			m_encodeEnable = true;
 			AV_LOG_D("init encode success");
 		}
@@ -74,7 +76,6 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 	// decoder
 	if(initParam.decodeParam.needDecode)
 	{
-
 		AVCodec* decodeCodec = nullptr;
 		if(initParam.decodeParam.byName)
 		{
@@ -96,10 +97,7 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 			return;
 		}
 
-		if(isSupport(decodeCodec,
-					 initParam.decodeParam.avCodecPar->format,
-					 initParam.decodeParam.avCodecPar->channel_layout,
-					 initParam.decodeParam.avCodecPar->sample_rate))
+		if(checkSupport(decodeCodec, initParam, false))
 		{
 			m_decodeCodecCtx = avcodec_alloc_context3(decodeCodec);
 			if(!m_decodeCodecCtx)
@@ -128,13 +126,14 @@ AudioCodec::AudioCodec(const AudioCodecParam& initParam)
 				AV_LOG_D("codec profile %s", decodeCodec->profiles->name);
 			AV_LOG_D("sample rate %d", m_decodeCodecCtx->sample_rate);
 
+			m_decodeCodec  = decodeCodec;
 			m_decodeEnable = true;
 			AV_LOG_D("init decode success");
 		}
 	}
 }
 
-AudioCodec::~AudioCodec()
+Codec::~Codec()
 {
 	if(m_encodeCodecCtx)
 	{
@@ -150,7 +149,7 @@ AudioCodec::~AudioCodec()
 	}
 }
 
-void AudioCodec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush)
+void Codec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush)
 {
 	if(!m_encodeEnable)
 		return;
@@ -177,12 +176,11 @@ void AudioCodec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool is
 			AV_LOG_E("legitimate encoding errors");
 			return;
 		}
-
 		cb(pkt);
 	}
 }
 
-void AudioCodec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
+void Codec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
 {
 	int res = -1;
 	if(isFlush)
@@ -196,21 +194,55 @@ void AudioCodec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isF
 	while(res >= 0)
 	{
 		res = avcodec_receive_frame(m_decodeCodecCtx, frame.getAVFrame());
-
 		if(res == AVERROR(EAGAIN) || res == AVERROR_EOF)
 		{
 			break;
 		}
 		else if(res < 0)
 		{
-			AV_LOG_E("legitimate encoding errors");
+			AV_LOG_E("legitimate decoding errors");
 			return;
 		}
 		cb(frame);
 	}
 }
 
-bool AudioCodec::isSupport(AVCodec* codec, int format, uint64_t channelLayout, int64_t sampleRate)
+bool Codec::checkSupport(AVCodec* codec, const CodecParam& initParam, bool isEncode)
+{
+	bool isSupport = false;
+	if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+	{
+		if(isEncode)
+		{
+			isSupport = checkAudioSupport(codec,
+										  initParam.encodeParam.sampleFmt,
+										  initParam.encodeParam.channelLayout,
+										  initParam.encodeParam.sampleRate);
+		}
+		else
+		{
+			isSupport = checkAudioSupport(codec,
+										  initParam.decodeParam.avCodecPar->format,
+										  initParam.decodeParam.avCodecPar->channel_layout,
+										  initParam.decodeParam.avCodecPar->sample_rate);
+		}
+	}
+	else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+	{
+		isSupport = true;
+	}
+	else
+	{
+		AV_LOG_E("don't know media type %d", m_codecMediaType);
+	}
+
+	return isSupport;
+}
+
+bool Codec::checkAudioSupport(AVCodec* codec,
+							  int	   format,
+							  uint64_t channelLayout,
+							  int64_t  sampleRate)
 {
 	int					  isFind	 = false;
 	const AVSampleFormat* supportFmt = codec->sample_fmts;
@@ -293,8 +325,8 @@ bool AudioCodec::isSupport(AVCodec* codec, int format, uint64_t channelLayout, i
 	return true;
 }
 
-// util func
-AVCodecContext* AudioCodec::getCodecCtx(bool isEncode) const
+// -------------------------- Codec utils function --------------------------
+AVCodecContext* Codec::getCodecCtx(bool isEncode) const
 {
 	if(isEncode)
 	{
@@ -303,7 +335,16 @@ AVCodecContext* AudioCodec::getCodecCtx(bool isEncode) const
 	return m_decodeCodecCtx;
 }
 
-int AudioCodec::format(bool isEncode) const
+AVCodec* Codec::getCodec(bool isEncode) const
+{
+	if(isEncode)
+	{
+		return m_encodeCodec;
+	}
+	return m_decodeCodec;
+}
+
+int Codec::format(bool isEncode) const
 {
 	auto* ctx = getCodecCtx(isEncode);
 	if(ctx == nullptr)
@@ -311,7 +352,7 @@ int AudioCodec::format(bool isEncode) const
 	return ctx->sample_fmt;
 }
 
-int AudioCodec::frameSize(bool isEncode) const
+int Codec::frameSize(bool isEncode) const
 {
 	auto* ctx = getCodecCtx(isEncode);
 	if(ctx == nullptr)
@@ -319,7 +360,7 @@ int AudioCodec::frameSize(bool isEncode) const
 	return ctx->frame_size;
 }
 
-uint64_t AudioCodec::channelLayout(bool isEncode) const
+uint64_t Codec::channelLayout(bool isEncode) const
 {
 	auto* ctx = getCodecCtx(isEncode);
 	if(ctx == nullptr)
@@ -327,10 +368,64 @@ uint64_t AudioCodec::channelLayout(bool isEncode) const
 	return ctx->channel_layout;
 }
 
-int AudioCodec::sampleRate(bool isEncode) const
+int Codec::sampleRate(bool isEncode) const
 {
 	auto* ctx = getCodecCtx(isEncode);
 	if(ctx == nullptr)
 		return -1;
 	return ctx->sample_rate;
+}
+
+const char* Codec::codecName(bool isEncode) const
+{
+	auto* codec = getCodec(isEncode);
+	if(codec == nullptr)
+		return nullptr;
+	return codec->name;
+}
+
+// -------------------------- Audio Codec --------------------------
+
+AudioCodec::AudioCodec(const CodecParam& initParam)
+	: Codec(initParam, CodecMediaType::CODEC_MEDIA_AUDIO)
+{
+	// getCodecCtx(false)
+
+	// AV_LOG_D("video w/h %d/%d", codecCtx->width, codecCtx->height);
+	// AV_LOG_D("video codec name %s", codec->name);
+	// AV_LOG_D("video AVPixelFormat %d", codecCtx->pix_fmt);
+}
+
+AudioCodec::~AudioCodec() { }
+
+// -------------------------- Video Codec --------------------------
+
+VideoCodec::VideoCodec(const CodecParam& initParam)
+	: Codec(initParam, CodecMediaType::CODEC_MEDIA_VIDEO)
+{ }
+
+VideoCodec::~VideoCodec() { }
+
+int VideoCodec::width(bool isEncode) const
+{
+	auto* ctx = getCodecCtx(isEncode);
+	if(ctx == nullptr)
+		return -1;
+	return ctx->width;
+}
+
+int VideoCodec::height(bool isEncode) const
+{
+	auto* ctx = getCodecCtx(isEncode);
+	if(ctx == nullptr)
+		return -1;
+	return ctx->height;
+}
+
+int VideoCodec::pixFormat(bool isEncode) const
+{
+	auto* ctx = getCodecCtx(isEncode);
+	if(ctx == nullptr)
+		return -1;
+	return ctx->pix_fmt;
 }

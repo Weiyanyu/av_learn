@@ -33,14 +33,19 @@ public:
 	// util func
 public:
 	bool writeAudioData(uint8_t** audioData, int32_t audioDataSize);
+	bool writeImageData(uint8_t* imageData, int pixFormat, int width, int height);
+
 	bool isValid() const
 	{
 		return m_valid;
 	}
-	int32_t getLineSize(int idx) const;
-	int		format() const;
-	int		channels() const;
-	int		nbSamples() const;
+	int32_t	  lineSize(int idx) const;
+	int*	  lineSize() const;
+	uint8_t** data() const;
+
+	int format() const;
+	int channels() const;
+	int nbSamples() const;
 
 private:
 	AVFrame* m_avFrame;
