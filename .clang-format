@@ -10,7 +10,7 @@
 BasedOnStyle:  WebKit
 TabWidth:        4
 IndentWidth:     4
-UseTab:          Always
+# UseTab:          Always
 ColumnLimit: 100
 
 # Other languages JavaScript, Proto
