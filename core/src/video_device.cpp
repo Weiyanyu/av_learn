@@ -39,9 +39,12 @@ VideoDevice::~VideoDevice() { }
 
 void VideoDevice::readData(const std::string& inFilename,
                            const std::string& outFilename,
-                           SwrContextParam&   swrParam,
+                           ReampleParam&      reampleParam,
                            const CodecParam&  encodeParam)
-{ }
+{
+    // create video codec
+    VideoCodec videoCodec(encodeParam);
+}
 
 void VideoDevice::readVideoDataToYUV(const std::string& inFilename,
                                      const std::string& outFilename,

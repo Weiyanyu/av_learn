@@ -39,7 +39,7 @@ AudioDevice::~AudioDevice() { }
 
 void AudioDevice::readData(const std::string& inFilename,
                            const std::string& outFilename,
-                           SwrContextParam&   swrParam,
+                           ReampleParam&      reampleParam,
                            const CodecParam&  audioEncodeParam)
 {
     // 0. decied if is read from stream(file)
@@ -95,10 +95,10 @@ void AudioDevice::readData(const std::string& inFilename,
     AV_LOG_D("frameSize %d", frameSize);
 
     // 4. create dst buffer, input samples, output samples, etc...
-    int inSampleSize  = av_get_bytes_per_sample(swrParam.in_sample_fmt);
-    int inChannels    = av_get_channel_layout_nb_channels(swrParam.in_ch_layout);
-    int outSampleSize = av_get_bytes_per_sample(swrParam.out_sample_fmt);
-    int outChannels   = av_get_channel_layout_nb_channels(swrParam.out_ch_layout);
+    int inSampleSize  = av_get_bytes_per_sample(reampleParam.inSampleFmt);
+    int inChannels    = av_get_channel_layout_nb_channels(reampleParam.inChannelLayout);
+    int outSampleSize = av_get_bytes_per_sample(reampleParam.outSampleFmt);
+    int outChannels   = av_get_channel_layout_nb_channels(reampleParam.outChannelLayout);
     int inSamples     = std::ceil(frameSize / inChannels / inSampleSize);
     int outSamples    = std::ceil(frameSize / outChannels / outSampleSize);
 
@@ -113,8 +113,8 @@ void AudioDevice::readData(const std::string& inFilename,
         "outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
 
     // 5. create swr
-    swrParam.fullOutputBufferSize = outputBufferSize;
-    SwrConvertor swrConvertor(swrParam);
+    reampleParam.fullOutputBufferSize = outputBufferSize;
+    SwrConvertor swrConvertor(reampleParam);
 
     // 6. create a frame
     FrameParam frameParam = {
@@ -245,16 +245,16 @@ void AudioDevice::readAudioDataToPCM(const std::string outputFilename,
     AV_LOG_D("outputBufferSize %d", outputBufferSize);
 
     // 6. create swrConvetro
-    SwrContextParam swrCtxParam = {.out_ch_layout   = outChannelLayout,
-                                   .out_sample_fmt  = static_cast<AVSampleFormat>(outSampleFmt),
-                                   .out_sample_rate = outSampleRate,
-                                   .in_ch_layout    = (int64_t)audioCodec.channelLayout(false),
-                                   .in_sample_fmt   = (AVSampleFormat)audioCodec.format(false),
-                                   .in_sample_rate  = audioCodec.sampleRate(false),
-                                   .log_offset      = 0,
-                                   .log_ctx         = nullptr,
-                                   .fullOutputBufferSize = outputBufferSize};
-    SwrConvertor    swrConvertor(swrCtxParam);
+    ReampleParam swrCtxParam = {.outChannelLayout     = outChannelLayout,
+                                .outSampleFmt         = static_cast<AVSampleFormat>(outSampleFmt),
+                                .outSampleRate        = outSampleRate,
+                                .inChannelLayout      = (int64_t)audioCodec.channelLayout(false),
+                                .inSampleFmt          = (AVSampleFormat)audioCodec.format(false),
+                                .inSampleRate         = audioCodec.sampleRate(false),
+                                .logOffset            = 0,
+                                .logCtx               = nullptr,
+                                .fullOutputBufferSize = outputBufferSize};
+    SwrConvertor swrConvertor(swrCtxParam);
 
     // 7. decodec callback
     auto decodecCB = [&](Frame& frame) {

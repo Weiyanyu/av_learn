@@ -4,7 +4,7 @@
 
 class AVFormatContext;
 class SwrContext;
-class SwrContextParam;
+class ReampleParam;
 class AudioCodecParam;
 class CodecParam;
 class Frame;
@@ -17,7 +17,7 @@ enum class DeviceType : int
     AUDIO,
     VIDEO,
     ENCAPSULATE_FILE,
-    PCM_FILE,
+    PURE_FILE,
 };
 
 struct AudioReaderParam
@@ -52,7 +52,7 @@ public:
     // read data and encode
     virtual void readData(const std::string& inFilename,
                           const std::string& outFilename,
-                          SwrContextParam&   swrParam,
+                          ReampleParam&      reampleParam,
                           const CodecParam&  encodeParam)
     { }
 
@@ -85,7 +85,7 @@ public:
 
     void readData(const std::string& inFilename,
                   const std::string& outFilename,
-                  SwrContextParam&   swrParam,
+                  ReampleParam&      reampleParam,
                   const CodecParam&  encodeParam) override;
     void readAudioDataToPCM(const std::string outputFilename,
                             int64_t           outChannelLayout,
@@ -108,7 +108,7 @@ public:
 
     void readData(const std::string& inFilename,
                   const std::string& outFilename,
-                  SwrContextParam&   swrParam,
+                  ReampleParam&      reampleParam,
                   const CodecParam&  encodeParam) override;
 
     void readVideoDataToYUV(const std::string& inFilename,

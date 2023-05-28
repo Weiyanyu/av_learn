@@ -8,13 +8,13 @@ extern "C"
 #include <libswresample/swresample.h>
 }
 
-SwrConvertor::SwrConvertor(const SwrContextParam& swrParam)
+SwrConvertor::SwrConvertor(const ReampleParam& reampleParam)
     : m_enable(false)
-    , m_ctxParam(swrParam)
+    , m_ctxParam(reampleParam)
 {
-    if(swrParam.in_ch_layout != swrParam.out_ch_layout ||
-       swrParam.in_sample_fmt != swrParam.out_sample_fmt ||
-       swrParam.in_sample_rate != swrParam.out_sample_rate)
+    if(reampleParam.inChannelLayout != reampleParam.outChannelLayout ||
+       reampleParam.inSampleFmt != reampleParam.outSampleFmt ||
+       reampleParam.inSampleRate != reampleParam.outSampleRate)
     {
         m_enable = true;
     }
@@ -25,20 +25,20 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam)
     }
 
     // swr bufer param
-    m_inChannel     = av_get_channel_layout_nb_channels(swrParam.in_ch_layout);
-    m_outChannel    = av_get_channel_layout_nb_channels(swrParam.out_ch_layout);
-    m_inSampleSize  = av_get_bytes_per_sample(swrParam.in_sample_fmt);
-    m_outSampleSize = av_get_bytes_per_sample(swrParam.out_sample_fmt);
+    m_inChannel     = av_get_channel_layout_nb_channels(reampleParam.inChannelLayout);
+    m_outChannel    = av_get_channel_layout_nb_channels(reampleParam.outChannelLayout);
+    m_inSampleSize  = av_get_bytes_per_sample(reampleParam.inSampleFmt);
+    m_outSampleSize = av_get_bytes_per_sample(reampleParam.outSampleFmt);
 
     m_swrCtx = swr_alloc_set_opts(nullptr,
-                                  swrParam.out_ch_layout,
-                                  swrParam.out_sample_fmt,
-                                  swrParam.out_sample_rate,
-                                  swrParam.in_ch_layout,
-                                  swrParam.in_sample_fmt,
-                                  swrParam.in_sample_rate,
-                                  swrParam.log_offset,
-                                  swrParam.log_ctx);
+                                  reampleParam.outChannelLayout,
+                                  reampleParam.outSampleFmt,
+                                  reampleParam.outSampleRate,
+                                  reampleParam.inChannelLayout,
+                                  reampleParam.inSampleFmt,
+                                  reampleParam.inSampleRate,
+                                  reampleParam.logOffset,
+                                  reampleParam.logCtx);
 
     if(!m_swrCtx)
     {
@@ -53,11 +53,11 @@ SwrConvertor::SwrConvertor(const SwrContextParam& swrParam)
     }
 
     m_tempData =
-        static_cast<uint8_t*>(av_malloc(swrParam.fullOutputBufferSize * TEMP_BUFFER_RATIO));
+        static_cast<uint8_t*>(av_malloc(reampleParam.fullOutputBufferSize * TEMP_BUFFER_RATIO));
     m_curOutputBufferSize  = 0;
-    m_fullOutputBufferSize = swrParam.fullOutputBufferSize;
+    m_fullOutputBufferSize = reampleParam.fullOutputBufferSize;
     AV_LOG_D("tempBufferSize %d m_fullOutputBufferSize %d",
-             swrParam.fullOutputBufferSize * TEMP_BUFFER_RATIO,
+             reampleParam.fullOutputBufferSize * TEMP_BUFFER_RATIO,
              m_fullOutputBufferSize);
 }
 
@@ -82,11 +82,8 @@ std::pair<uint8_t**, int> SwrConvertor::convert(
     if(!m_swrCtx)
         return {nullptr, 0};
 
-    int nbSampleOutput = swr_convert(m_swrCtx, //重采样的上下文
-                                     dstData, //输出结果缓冲区
-                                     outSamples, //每个通道的采样数
-                                     (const uint8_t**)srcData, //输入缓冲区
-                                     inSamples); //输入单个通道的采样数
+    int nbSampleOutput =
+        swr_convert(m_swrCtx, dstData, outSamples, (const uint8_t**)srcData, inSamples);
 
     if(nbSampleOutput < 0)
     {

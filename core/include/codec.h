@@ -16,14 +16,35 @@ using PacketReceiveCB = std::function<void(AVPacket*)>;
 
 struct EncoderParam
 {
-    bool        needEncode    = false;
-    std::string codecName     = "";
-    int         codecId       = -1;
-    int         sampleFmt     = -1;
-    uint64_t    channelLayout = 0;
-    int         sampleRate    = -1;
-    int64_t     bitRate       = -1;
-    int         profile       = -1;
+    bool        needEncode = false;
+    std::string codecName  = "";
+    int         codecId    = -1;
+    int64_t     bitRate    = -1;
+    int         profile    = -1;
+
+    // for audio
+    int      sampleFmt     = -1;
+    uint64_t channelLayout = 0;
+    int      sampleRate    = -1;
+
+    // for video
+    // codec level
+    int level   = 0;
+    int width   = 0;
+    int height  = 0;
+    int gopSize = 0;
+    // minimum interval of I Frame
+    int keyintMin = 0;
+    // max frame count of B frame(one gop)
+    int maxBFrame = 0;
+    // if has B frame, set 1
+    int hasBFrame = 0;
+    // reference frame count
+    int refs = 0;
+    // pix format
+    int pixFmt = -1;
+    // fps
+    int framerate = 0;
 
     // control param
     // find encode by name

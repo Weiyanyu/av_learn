@@ -27,7 +27,7 @@ extern "C"
 
 Device::Device()
     : m_deviceName("")
-    , m_deviceType(DeviceType::PCM_FILE)
+    , m_deviceType(DeviceType::PURE_FILE)
 { }
 
 Device::Device(const std::string& deviceName, DeviceType deviceType)
@@ -45,13 +45,15 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
     case DeviceType::VIDEO:
         inputFormat = av_find_input_format("Video4Linux2");
         break;
-    case DeviceType::PCM_FILE:
     case DeviceType::ENCAPSULATE_FILE:
         inputFormat = nullptr;
         break;
+    case DeviceType::PURE_FILE:
+        AV_LOG_D("for pure file, don't need open device %d", (int)m_deviceType);
+        return;
     default:
         AV_LOG_E("unkown device type %d", (int)m_deviceType);
-        break;
+        return;
     }
 
     AVDictionary* options = nullptr;

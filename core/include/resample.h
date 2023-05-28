@@ -9,17 +9,27 @@ extern "C"
 }
 
 #define TEMP_BUFFER_RATIO 2
-struct SwrContextParam
+struct ReampleParam
 {
-    int64_t             out_ch_layout;
-    enum AVSampleFormat out_sample_fmt;
-    int64_t             out_sample_rate;
-    int64_t             in_ch_layout;
-    enum AVSampleFormat in_sample_fmt;
-    int64_t             in_sample_rate;
-    int                 log_offset;
-    void*               log_ctx;
+    // for audio
+    int64_t             outChannelLayout;
+    enum AVSampleFormat outSampleFmt;
+    int64_t             outSampleRate;
+    int64_t             inChannelLayout;
+    enum AVSampleFormat inSampleFmt;
+    int64_t             inSampleRate;
+    int                 logOffset;
+    void*               logCtx;
     int                 fullOutputBufferSize = -1;
+
+    // for video
+    int inWidth  = 0;
+    int inHeight = 0;
+    int inPixFmt = 0;
+
+    int outWidth  = 0;
+    int outHeight = 0;
+    int outPixFmt = -1;
 };
 
 class SwrContext;
@@ -27,7 +37,7 @@ class SwrConvertor
 {
 public:
     SwrConvertor() = default;
-    SwrConvertor(const SwrContextParam& swrParam);
+    SwrConvertor(const ReampleParam& reampleParam);
 
     // dsiable copy-ctor and move-ctor
     SwrConvertor(const SwrConvertor&) = delete;
@@ -59,11 +69,11 @@ private:
     uint8_t*    m_tempData = nullptr;
 
     // in/out param
-    int             m_inChannel     = 0;
-    int             m_outChannel    = 0;
-    int             m_inSampleSize  = 0;
-    int             m_outSampleSize = 0;
-    SwrContextParam m_ctxParam;
+    int          m_inChannel     = 0;
+    int          m_outChannel    = 0;
+    int          m_inSampleSize  = 0;
+    int          m_outSampleSize = 0;
+    ReampleParam m_ctxParam;
 
     int m_srcLineSize = 0;
     int m_dstLineSize = 0;

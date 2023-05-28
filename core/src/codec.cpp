@@ -45,9 +45,9 @@ Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
                          initParam.encodeParam.codecName.c_str());
                 return;
             }
-            // set for audio
             if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
             {
+                // set for audio
                 m_encodeCodecCtx->sample_fmt     = (AVSampleFormat)initParam.encodeParam.sampleFmt;
                 m_encodeCodecCtx->channel_layout = initParam.encodeParam.channelLayout;
                 m_encodeCodecCtx->channels =
@@ -55,6 +55,31 @@ Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
                 m_encodeCodecCtx->sample_rate = initParam.encodeParam.sampleRate;
                 m_encodeCodecCtx->bit_rate    = initParam.encodeParam.bitRate;
                 m_encodeCodecCtx->profile     = initParam.encodeParam.profile;
+            }
+            else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+            {
+                // set for video
+                // SPS&PPS
+                m_encodeCodecCtx->profile = initParam.encodeParam.profile;
+                m_encodeCodecCtx->level   = initParam.encodeParam.level;
+
+                m_encodeCodecCtx->width    = initParam.encodeParam.width;
+                m_encodeCodecCtx->height   = initParam.encodeParam.height;
+                m_encodeCodecCtx->pix_fmt  = (AVPixelFormat)initParam.encodeParam.pixFmt;
+                m_encodeCodecCtx->gop_size = initParam.encodeParam.gopSize;
+                // 最小多少帧插入一个I帧
+                m_encodeCodecCtx->keyint_min   = initParam.encodeParam.keyintMin; //option
+                m_encodeCodecCtx->max_b_frames = initParam.encodeParam.maxBFrame; //option
+                m_encodeCodecCtx->has_b_frames = initParam.encodeParam.hasBFrame; //option
+                // ref frame count(max)
+                m_encodeCodecCtx->refs = initParam.encodeParam.refs; //option
+                // input yuv format
+                m_encodeCodecCtx->bit_rate = initParam.encodeParam.bitRate; //kbps
+                // fps
+                m_encodeCodecCtx->framerate = AVRational{initParam.encodeParam.framerate, 1};
+                // frame duration
+                m_encodeCodecCtx->time_base =
+                    AVRational{m_encodeCodecCtx->framerate.den, m_encodeCodecCtx->framerate.num};
             }
 
             if(int ret = avcodec_open2(m_encodeCodecCtx, encodeCodec, NULL); ret < 0)
