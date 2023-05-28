@@ -117,13 +117,13 @@ void AudioDevice::readData(const std::string& inFilename,
     SwrConvertor swrConvertor(reampleParam);
 
     // 6. create a frame
-    FrameParam frameParam = {
+    AudioFrameParam AudioFrameParam = {
         .enable        = audioCodec.encodeEnable(),
         .frameSize     = frameSize,
         .channelLayout = audioEncodeParam.encodeParam.channelLayout,
         .format        = audioEncodeParam.encodeParam.sampleFmt,
     };
-    Frame frame(frameParam);
+    Frame frame(AudioFrameParam);
 
     // 7. create a packet
     AVPacket* newPkt = av_packet_alloc();

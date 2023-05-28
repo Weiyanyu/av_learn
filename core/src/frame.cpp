@@ -22,7 +22,7 @@ Frame::Frame()
     AV_LOG_D("alloc a empty frame success");
 }
 
-Frame::Frame(const FrameParam& initParam)
+Frame::Frame(const AudioFrameParam& initParam)
     : m_avFrame(nullptr)
     , m_valid(false)
 {
@@ -63,6 +63,40 @@ Frame::Frame(const FrameParam& initParam)
              m_avFrame->nb_samples,
              m_avFrame->channel_layout,
              m_avFrame->format);
+}
+
+Frame::Frame(const VideoFrameParam& initParam)
+{
+    if(!initParam.enable)
+    {
+        AV_LOG_D("don't need create frame");
+        return;
+    }
+    m_avFrame = av_frame_alloc();
+    if(!m_avFrame)
+    {
+        AV_LOG_E("Fialed to alloc frame");
+        return;
+    }
+
+    m_avFrame->width  = initParam.width;
+    m_avFrame->height = initParam.height;
+    m_avFrame->format = initParam.pixFormat;
+    // init 0
+    m_avFrame->pts = 0;
+
+    if(av_frame_get_buffer(m_avFrame, 32) < 0)
+    {
+        av_frame_free(&m_avFrame);
+        AV_LOG_E("Failed to alloc frame buffer");
+        return;
+    }
+    m_valid = true;
+    AV_LOG_D("frame witdh %d frame height %d pix fromat %d frame line size %d",
+             m_avFrame->width,
+             m_avFrame->height,
+             m_avFrame->format,
+             m_avFrame->linesize[0]);
 }
 
 Frame::~Frame()
@@ -154,4 +188,16 @@ int Frame::nbSamples() const
     if(!m_valid)
         return -1;
     return m_avFrame->nb_samples;
+}
+int Frame::width() const
+{
+    if(!m_valid)
+        return -1;
+    return m_avFrame->width;
+}
+int Frame::heigt() const
+{
+    if(!m_valid)
+        return -1;
+    return m_avFrame->height;
 }

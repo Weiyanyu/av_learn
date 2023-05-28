@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-struct FrameParam
+struct AudioFrameParam
 {
     bool     enable = false;
     int      frameSize;
@@ -10,12 +10,22 @@ struct FrameParam
     int      format;
 };
 
+struct VideoFrameParam
+{
+    bool enable = false;
+    int  width;
+    int  height;
+    int  pixFormat;
+};
+
 class AVFrame;
 class Frame
 {
 public:
     Frame();
-    Frame(const FrameParam& initParam);
+    Frame(const AudioFrameParam& initParam);
+    Frame(const VideoFrameParam& initParam);
+
     // dsiable copy-ctor and move-ctor
     Frame(const Frame&) = delete;
     Frame& operator=(const Frame) = delete;
@@ -46,6 +56,8 @@ public:
     int format() const;
     int channels() const;
     int nbSamples() const;
+    int width() const;
+    int heigt() const;
 
 private:
     AVFrame* m_avFrame;

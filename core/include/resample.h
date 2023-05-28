@@ -25,7 +25,7 @@ struct ReampleParam
     // for video
     int inWidth  = 0;
     int inHeight = 0;
-    int inPixFmt = 0;
+    int inPixFmt = -1;
 
     int outWidth  = 0;
     int outHeight = 0;

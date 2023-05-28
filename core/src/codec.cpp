@@ -143,14 +143,6 @@ Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
                 return;
             }
 
-            AV_LOG_D("channel layout %ld", m_decodeCodecCtx->channel_layout);
-            AV_LOG_D("channel %d", m_decodeCodecCtx->channels);
-            AV_LOG_D("format %d", m_decodeCodecCtx->sample_fmt);
-            AV_LOG_D("codec name %s", decodeCodec->name);
-            if(decodeCodec->profiles)
-                AV_LOG_D("codec profile %s", decodeCodec->profiles->name);
-            AV_LOG_D("sample rate %d", m_decodeCodecCtx->sample_rate);
-
             m_decodeCodec  = decodeCodec;
             m_decodeEnable = true;
             AV_LOG_D("init decode success");
@@ -373,7 +365,15 @@ int Codec::format(bool isEncode) const
     auto* ctx = getCodecCtx(isEncode);
     if(ctx == nullptr)
         return -1;
-    return ctx->sample_fmt;
+    if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+    {
+        return ctx->sample_fmt;
+    }
+    else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+    {
+        return ctx->pix_fmt;
+    }
+    return -1;
 }
 
 int Codec::frameSize(bool isEncode) const
@@ -412,7 +412,25 @@ const char* Codec::codecName(bool isEncode) const
 
 AudioCodec::AudioCodec(const CodecParam& initParam)
     : Codec(initParam, CodecMediaType::CODEC_MEDIA_AUDIO)
-{ }
+{
+    if(encodeEnable())
+    {
+        AV_LOG_D("[encode] channel layout %ld", channelLayout(true));
+        AV_LOG_D("[encode] channel %d", av_get_channel_layout_nb_channels(channelLayout(true)));
+        AV_LOG_D("[encode] format %d", format(true));
+        AV_LOG_D("[encode] codec name %s", codecName(true));
+        AV_LOG_D("[encode] sample rate %d", sampleRate(true));
+    }
+
+    if(decodeEnable())
+    {
+        AV_LOG_D("[decode] channel layout %ld", channelLayout(false));
+        AV_LOG_D("[decode] channel %d", av_get_channel_layout_nb_channels(channelLayout(false)));
+        AV_LOG_D("[decode] format %d", format(false));
+        AV_LOG_D("[decode] codec name %s", codecName(false));
+        AV_LOG_D("[decode] sample rate %d", sampleRate(false));
+    }
+}
 
 AudioCodec::~AudioCodec() { }
 
@@ -421,9 +439,20 @@ AudioCodec::~AudioCodec() { }
 VideoCodec::VideoCodec(const CodecParam& initParam)
     : Codec(initParam, CodecMediaType::CODEC_MEDIA_VIDEO)
 {
-    AV_LOG_D("video w/h %d/%d", width(false), height(false));
-    AV_LOG_D("video codec name %s", codecName(false));
-    AV_LOG_D("video AVPixelFormat %d", pixFormat(false));
+
+    if(encodeEnable())
+    {
+        AV_LOG_D("[encode] video w/h %d/%d", width(true), height(true));
+        AV_LOG_D("[encode] video codec name %s", codecName(true));
+        AV_LOG_D("[encode] video AVPixelFormat %d", pixFormat(true));
+    }
+
+    if(decodeEnable())
+    {
+        AV_LOG_D("[decode] video w/h %d/%d", width(false), height(false));
+        AV_LOG_D("[decode] video codec name %s", codecName(false));
+        AV_LOG_D("[decode] video AVPixelFormat %d", pixFormat(false));
+    }
 }
 
 VideoCodec::~VideoCodec() { }

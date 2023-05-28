@@ -9,6 +9,7 @@ class AudioCodecParam;
 class CodecParam;
 class Frame;
 class AudioCodec;
+class VideoCodec;
 class AVPacket;
 class SwrConvertor;
 
@@ -33,6 +34,25 @@ struct AudioReaderParam
     AudioCodec&    audioCodec;
     Frame&         frame;
     AVPacket*      pkt;
+};
+
+struct VideoReaderParam
+{
+    std::ifstream& ifs;
+    std::ofstream& ofs;
+    uint8_t*       srcData;
+    int            frameSize;
+    int            inWidth  = 0;
+    int            inHeight = 0;
+    int            inPixFmt = 0;
+
+    int outWidth  = 0;
+    int outHeight = 0;
+    int outPixFmt = -1;
+
+    VideoCodec& videoCodec;
+    Frame&      frame;
+    AVPacket*   pkt;
 };
 
 class Device
@@ -117,4 +137,10 @@ public:
                             int                outWidth,
                             int                outHeight,
                             int                outPixFormat);
+
+public:
+    void writeImageToFile(std::ofstream& ofs, Frame& frame);
+
+private:
+    void readAudioFromStream(VideoReaderParam& param);
 };

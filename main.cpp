@@ -36,8 +36,9 @@ int main()
     initParam();
     // testReadAudioFromDevice();
     // testReadAudioFromFile();
-    testReadPCMAndEncode();
+    // testReadPCMAndEncode();
     // testReadVideoDataFromFile();
+    testReadImageDataAndEncodeVideo();
     return 0;
 }
 
@@ -121,13 +122,43 @@ void testReadPCMAndEncode()
 
 void testReadVideoDataFromFile()
 {
-    VideoDevice device("/home/yeonon/learn/av/demo/build/sample-5s.mp4", DeviceType::ENCAPSULATE_FILE);
-    device.readVideoDataToYUV("", "./outYuv", {}, 1280, 720, AVPixelFormat::AV_PIX_FMT_YUV420P);
+    VideoDevice device("/home/yeonon/learn/av/demo/build/file_example_MP4_1920_18MG.mp4", DeviceType::ENCAPSULATE_FILE);
+    device.readVideoDataToYUV("", "./out0.yuv", {}, 1920, 1080, AVPixelFormat::AV_PIX_FMT_YUV420P);
 }
 
 void testReadImageDataAndEncodeVideo()
 {
     VideoDevice device;
-
-    // device.readData("", "", )
+    ReampleParam scaleParam
+    {
+        .inWidth = 1920,
+        .inHeight = 1080,
+        .inPixFmt = AVPixelFormat::AV_PIX_FMT_YUV420P,
+        .outWidth = 1280,
+        .outHeight = 720,
+        .outPixFmt = AVPixelFormat::AV_PIX_FMT_YUV420P,
+    };
+    EncoderParam encodeParam
+    {
+        .needEncode = true,
+        .codecName = "libx264",
+        .bitRate = 600000,
+        .profile = FF_PROFILE_H264_HIGH_444,
+        .level = 50,
+        .width = 1280,
+        .height = 720,
+        .gopSize = 250,
+        .keyintMin = 50,
+        .maxBFrame = 3,
+        .hasBFrame = 1,
+        .refs = 3,
+        .pixFmt = AVPixelFormat::AV_PIX_FMT_YUV420P,
+        .framerate = 15,
+        .byName = true
+    };
+    CodecParam codecParam
+    {
+        .encodeParam = encodeParam,
+    };
+    device.readData("out0.yuv", "out0.h264", scaleParam, codecParam);
 }
