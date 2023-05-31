@@ -91,7 +91,7 @@ void VideoDevice::readData(const std::string& inFilename,
             .frame      = frame,
             .pkt        = packet,
         };
-        readAudioFromStream(vReaderParam);
+        readVideoFromStream(vReaderParam);
 
         // 4.1 release buffer
         if(srcBuffer)
@@ -241,7 +241,7 @@ void VideoDevice::readVideoDataToYUV(const std::string& inFilename,
     }
 }
 
-void VideoDevice::readAudioFromStream(VideoReaderParam& param)
+void VideoDevice::readVideoFromStream(VideoReaderParam& param)
 {
     int  n              = 0;
     auto encodeCallback = [&](AVPacket* pkt) {

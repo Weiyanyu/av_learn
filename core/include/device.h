@@ -142,5 +142,5 @@ public:
     void writeImageToFile(std::ofstream& ofs, Frame& frame);
 
 private:
-    void readAudioFromStream(VideoReaderParam& param);
+    void readVideoFromStream(VideoReaderParam& param);
 };
