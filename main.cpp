@@ -76,13 +76,30 @@ void testReadAudioFromDevice()
         .encodeParam = audioEncodeParam
     };
     // start record and save output file
-    device.readAndEncode("", "out.aac", swrCtxParam, encoderParam);
+
+    ReadDeviceDataParam readParams
+    {
+        .outFilename = "out.aac",
+        .resampleParam = swrCtxParam,
+        .codecParam = encoderParam
+    };
+
+    device.readAndEncode(readParams);
 }
 
 void testReadAudioFromFile()
 {
     AudioDevice device("/home/yeonon/learn/av/demo/build/sample-6s.mp3", DeviceType::ENCAPSULATE_FILE);
-    device.readAndDecode("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
+
+    ReadDeviceDataParam readParams
+    {
+        .outFilename = "out3.pcm",
+        .outChannelLayout = AV_CH_LAYOUT_STEREO,
+        .outSampleFmt = AV_SAMPLE_FMT_S16,
+        .outSampleRate = 44100,
+    };
+
+    device.readAndDecode(readParams);
 }
 
 void testReadPCMAndEncode()
@@ -117,13 +134,30 @@ void testReadPCMAndEncode()
         .logCtx = nullptr
     };
 
-    device.readAndEncode("/home/yeonon/learn/av/demo/build/out3.pcm", "out100.aac", swrCtxParam, encoderParam);
+    ReadDeviceDataParam readParams
+    {
+        .inFilename = "/home/yeonon/learn/av/demo/build/out3.pcm",
+        .outFilename = "out100.aac",
+        .resampleParam = swrCtxParam,
+        .codecParam = encoderParam
+    };
+
+    device.readAndEncode(readParams);
 }
 
 void testReadVideoDataFromFile()
 {
     VideoDevice device("/home/yeonon/learn/av/demo/build/file_example_MP4_1920_18MG.mp4", DeviceType::ENCAPSULATE_FILE);
-    device.readAndDecode("", "./out0.yuv", {}, 1920, 1080, AVPixelFormat::AV_PIX_FMT_YUV420P);
+
+    ReadDeviceDataParam readParams
+    {
+        .outFilename = "./out0.yuv",
+        .outWidth = 1920,
+        .outHeight = 1080,
+        .outPixFormat = AVPixelFormat::AV_PIX_FMT_YUV420P,
+    };
+
+    device.readAndDecode(readParams);
 }
 
 void testReadImageDataAndEncodeVideo()
@@ -160,5 +194,14 @@ void testReadImageDataAndEncodeVideo()
     {
         .encodeParam = encodeParam,
     };
-    device.readAndEncode("out0.yuv", "out0.h264", scaleParam, codecParam);
+
+    ReadDeviceDataParam readParams
+    {
+        .inFilename = "out0.yuv",
+        .outFilename = "out0.h264",
+        .resampleParam = scaleParam,
+        .codecParam = codecParam,
+    };
+
+    device.readAndEncode(readParams);
 }

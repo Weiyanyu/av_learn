@@ -5,6 +5,8 @@
 #include <ostream>
 #include <string>
 
+#include "../../utils/include/baseDefine.h"
+
 class AVCodecContext;
 class AVCodec;
 class AVPacket;
@@ -73,17 +75,11 @@ struct CodecParam
     DecoderParam decodeParam;
 };
 
-enum CodecMediaType
-{
-    CODEC_MEDIA_UNKNOW = -1,
-    CODEC_MEDIA_AUDIO,
-    CODEC_MEDIA_VIDEO,
-};
 
 class Codec
 {
 public:
-    Codec(const CodecParam& initParam, CodecMediaType mediaType);
+    Codec(const CodecParam& initParam, MediaType mediaType);
     // dsiable copy-ctor and move-ctor
     Codec(const Codec&) = delete;
     Codec& operator=(const Codec) = delete;
@@ -131,7 +127,7 @@ private:
     bool m_encodeEnable = false;
     bool m_decodeEnable = false;
 
-    CodecMediaType m_codecMediaType;
+    MediaType m_codecMediaType;
 };
 
 class AudioCodec : public Codec

@@ -37,27 +37,24 @@ AudioDevice::AudioDevice(const std::string& deviceName, DeviceType deviceType)
 
 AudioDevice::~AudioDevice() { }
 
-void AudioDevice::readAndEncode(const std::string& inFilename,
-                           const std::string& outFilename,
-                           ReampleParam&      resampleParam,
-                           const CodecParam&  audioEncodeParam)
+void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
 {
     // 0. decied if is read from stream(file)
     bool readFromStream = false;
-    if(inFilename != "")
+    if(params.inFilename != "")
     {
         readFromStream = true;
     }
     AV_LOG_D("is read from stream %d", readFromStream);
 
     // 1. init param
-    std::ofstream ofs(outFilename, std::ios::out);
+    std::ofstream ofs(params.outFilename, std::ios::out);
     AVPacket      audioPacket;
     int           frameSize = 0;
     av_init_packet(&audioPacket);
 
     // 2. codec
-    AudioCodec audioCodec(audioEncodeParam);
+    AudioCodec audioCodec(params.codecParam);
 
     // 3. calc frame size
     if(!readFromStream)
@@ -81,8 +78,8 @@ void AudioDevice::readAndEncode(const std::string& inFilename,
             // need encode
             frameSize =
                 audioCodec.frameSize(true) *
-                av_get_channel_layout_nb_channels(audioEncodeParam.encodeParam.channelLayout) *
-                av_get_bytes_per_sample((AVSampleFormat)audioEncodeParam.encodeParam.sampleFmt);
+                av_get_channel_layout_nb_channels(params.codecParam.encodeParam.channelLayout) *
+                av_get_bytes_per_sample((AVSampleFormat)params.codecParam.encodeParam.sampleFmt);
         }
         else
         {
@@ -95,10 +92,10 @@ void AudioDevice::readAndEncode(const std::string& inFilename,
     AV_LOG_D("frameSize %d", frameSize);
 
     // 4. create dst buffer, input samples, output samples, etc...
-    int inSampleSize  = av_get_bytes_per_sample(resampleParam.inSampleFmt);
-    int inChannels    = av_get_channel_layout_nb_channels(resampleParam.inChannelLayout);
-    int outSampleSize = av_get_bytes_per_sample(resampleParam.outSampleFmt);
-    int outChannels   = av_get_channel_layout_nb_channels(resampleParam.outChannelLayout);
+    int inSampleSize  = av_get_bytes_per_sample(params.resampleParam.inSampleFmt);
+    int inChannels    = av_get_channel_layout_nb_channels(params.resampleParam.inChannelLayout);
+    int outSampleSize = av_get_bytes_per_sample(params.resampleParam.outSampleFmt);
+    int outChannels   = av_get_channel_layout_nb_channels(params.resampleParam.outChannelLayout);
     int inSamples     = std::ceil(frameSize / inChannels / inSampleSize);
     int outSamples    = std::ceil(frameSize / outChannels / outSampleSize);
 
@@ -113,15 +110,15 @@ void AudioDevice::readAndEncode(const std::string& inFilename,
         "outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
 
     // 5. create swr
-    resampleParam.fullOutputBufferSize = outputBufferSize;
-    SwrConvertor swrConvertor(resampleParam);
+    params.resampleParam.fullOutputBufferSize = outputBufferSize;
+    SwrConvertor swrConvertor(params.resampleParam);
 
     // 6. create a frame
     AudioFrameParam AudioFrameParam = {
         .enable        = audioCodec.encodeEnable(),
         .frameSize     = frameSize,
-        .channelLayout = audioEncodeParam.encodeParam.channelLayout,
-        .format        = audioEncodeParam.encodeParam.sampleFmt,
+        .channelLayout = params.codecParam.encodeParam.channelLayout,
+        .format        = params.codecParam.encodeParam.sampleFmt,
     };
     Frame frame(AudioFrameParam);
 
@@ -152,7 +149,7 @@ void AudioDevice::readAndEncode(const std::string& inFilename,
     else
     {
         // from stream/file
-        std::ifstream ifs(inFilename, std::ios::in);
+        std::ifstream ifs(params.inFilename, std::ios::in);
         uint8_t*      srcBuffer = static_cast<uint8_t*>(av_malloc(frameSize));
         if(!srcBuffer)
         {
@@ -193,17 +190,14 @@ void AudioDevice::readAndEncode(const std::string& inFilename,
     }
 }
 
-void AudioDevice::readAndDecode(const std::string outputFilename,
-                                     int64_t           outChannelLayout,
-                                     int               outSampleFmt,
-                                     int64_t           outSampleRate)
+void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
 {
     if(getDeviceType() != DeviceType::ENCAPSULATE_FILE)
     {
         AV_LOG_E("don't support read audio data to pcm.");
         return;
     }
-    std::ofstream ofs(outputFilename, std::ios::out);
+    std::ofstream ofs(params.outFilename, std::ios::out);
 
     // 1. find audio stream
     int audioStreamIdx = findStreamIdxByMediaType(AVMediaType::AVMEDIA_TYPE_AUDIO);
@@ -238,16 +232,16 @@ void AudioDevice::readAndDecode(const std::string outputFilename,
     Frame frame;
 
     // 5. calc out Buffer size
-    int      outSampleSize    = av_get_bytes_per_sample(static_cast<AVSampleFormat>(outSampleFmt));
-    int      outChannels      = av_get_channel_layout_nb_channels(outChannelLayout);
-    int      outputBufferSize = outSampleSize * outChannels * outSampleRate;
+    int      outSampleSize    = av_get_bytes_per_sample(static_cast<AVSampleFormat>(params.outSampleFmt));
+    int      outChannels      = av_get_channel_layout_nb_channels(params.outChannelLayout);
+    int      outputBufferSize = outSampleSize * outChannels * params.outSampleRate;
     uint8_t* dstData          = static_cast<uint8_t*>(av_malloc(outputBufferSize));
     AV_LOG_D("outputBufferSize %d", outputBufferSize);
 
     // 6. create swrConvetro
-    ReampleParam swrCtxParam = {.outChannelLayout     = outChannelLayout,
-                                .outSampleFmt         = static_cast<AVSampleFormat>(outSampleFmt),
-                                .outSampleRate        = outSampleRate,
+    ReampleParam swrCtxParam = {.outChannelLayout     = params.outChannelLayout,
+                                .outSampleFmt         = static_cast<AVSampleFormat>(params.outSampleFmt),
+                                .outSampleRate        = params.outSampleRate,
                                 .inChannelLayout      = (int64_t)audioCodec.channelLayout(false),
                                 .inSampleFmt          = (AVSampleFormat)audioCodec.format(false),
                                 .inSampleRate         = audioCodec.sampleRate(false),
@@ -261,7 +255,7 @@ void AudioDevice::readAndDecode(const std::string outputFilename,
         if(swrConvertor.enable())
         {
             int64_t dst_nb_samples = swrConvertor.calcNBSample(
-                frame.getAVFrame()->sample_rate, frame.getAVFrame()->nb_samples, outSampleRate);
+                frame.getAVFrame()->sample_rate, frame.getAVFrame()->nb_samples, params.outSampleRate);
             auto [outputData, outputSize] = swrConvertor.convert(frame.data(),
                                                                  frame.lineSize(0),
                                                                  &dstData,

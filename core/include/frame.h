@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "../../utils/include/baseDefine.h"
 
 struct AudioFrameParam
 {

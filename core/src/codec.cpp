@@ -11,7 +11,7 @@ extern "C"
 #include <ostream>
 
 // -------------------------- Base Codec --------------------------
-Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
+Codec::Codec(const CodecParam& initParam, MediaType mediaType)
     : m_encodeCodecCtx(nullptr)
     , m_decodeCodecCtx(nullptr)
     , m_encodeEnable(false)
@@ -45,7 +45,7 @@ Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
                          initParam.encodeParam.codecName.c_str());
                 return;
             }
-            if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+            if(m_codecMediaType == MediaType::MEDIA_AUDIO)
             {
                 // set for audio
                 m_encodeCodecCtx->sample_fmt     = (AVSampleFormat)initParam.encodeParam.sampleFmt;
@@ -56,7 +56,7 @@ Codec::Codec(const CodecParam& initParam, CodecMediaType mediaType)
                 m_encodeCodecCtx->bit_rate    = initParam.encodeParam.bitRate;
                 m_encodeCodecCtx->profile     = initParam.encodeParam.profile;
             }
-            else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+            else if(m_codecMediaType == MediaType::MEDIA_VIDEO)
             {
                 // set for video
                 // SPS&PPS
@@ -226,7 +226,7 @@ void Codec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
 bool Codec::checkSupport(AVCodec* codec, const CodecParam& initParam, bool isEncode)
 {
     bool isSupport = false;
-    if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+    if(m_codecMediaType == MediaType::MEDIA_AUDIO)
     {
         if(isEncode)
         {
@@ -243,7 +243,7 @@ bool Codec::checkSupport(AVCodec* codec, const CodecParam& initParam, bool isEnc
                                           initParam.decodeParam.avCodecPar->sample_rate);
         }
     }
-    else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+    else if(m_codecMediaType == MediaType::MEDIA_VIDEO)
     {
         isSupport = true;
     }
@@ -365,11 +365,11 @@ int Codec::format(bool isEncode) const
     auto* ctx = getCodecCtx(isEncode);
     if(ctx == nullptr)
         return -1;
-    if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_AUDIO)
+    if(m_codecMediaType == MediaType::MEDIA_AUDIO)
     {
         return ctx->sample_fmt;
     }
-    else if(m_codecMediaType == CodecMediaType::CODEC_MEDIA_VIDEO)
+    else if(m_codecMediaType == MediaType::MEDIA_VIDEO)
     {
         return ctx->pix_fmt;
     }
@@ -411,7 +411,7 @@ const char* Codec::codecName(bool isEncode) const
 // -------------------------- Audio Codec --------------------------
 
 AudioCodec::AudioCodec(const CodecParam& initParam)
-    : Codec(initParam, CodecMediaType::CODEC_MEDIA_AUDIO)
+    : Codec(initParam, MediaType::MEDIA_AUDIO)
 {
     if(encodeEnable())
     {
@@ -437,7 +437,7 @@ AudioCodec::~AudioCodec() { }
 // -------------------------- Video Codec --------------------------
 
 VideoCodec::VideoCodec(const CodecParam& initParam)
-    : Codec(initParam, CodecMediaType::CODEC_MEDIA_VIDEO)
+    : Codec(initParam, MediaType::MEDIA_VIDEO)
 {
 
     if(encodeEnable())

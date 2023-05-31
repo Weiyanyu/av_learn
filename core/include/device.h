@@ -1,6 +1,9 @@
 #pragma once
 
 #include <string>
+#include "codec.h"
+#include "resample.h"
+#include "../../utils/include/baseDefine.h"
 
 class AVFormatContext;
 class SwrContext;
@@ -55,6 +58,24 @@ struct VideoReaderParam
     AVPacket*   pkt;
 };
 
+struct ReadDeviceDataParam
+{
+    // common
+    std::string inFilename;
+    std::string outFilename;
+    ReampleParam resampleParam;
+    CodecParam  codecParam;
+
+    // audio
+    int64_t           outChannelLayout;
+    int               outSampleFmt;
+    int               outSampleRate;
+    // video
+    int                outWidth;
+    int                outHeight;
+    int                outPixFormat;
+};
+
 class Device
 {
 public:
@@ -70,10 +91,9 @@ public:
 
 public:
     // read data and encode
-    virtual void readAndEncode(const std::string& inFilename,
-                          const std::string& outFilename,
-                          ReampleParam&      resampleParam,
-                          const CodecParam&  encodeParam)
+    virtual void readAndEncode(ReadDeviceDataParam& params)
+    { }
+    virtual void readAndDecode(ReadDeviceDataParam& params)
     { }
 
 protected:
@@ -103,14 +123,8 @@ public:
 
     ~AudioDevice();
 
-    void readAndEncode(const std::string& inFilename,
-                  const std::string& outFilename,
-                  ReampleParam&      resampleParam,
-                  const CodecParam&  encodeParam) override;
-    void readAndDecode(const std::string outputFilename,
-                            int64_t           outChannelLayout,
-                            int               outSampleFmt,
-                            int64_t           outSampleRate);
+    void readAndEncode(ReadDeviceDataParam& params) override;
+    void readAndDecode(ReadDeviceDataParam& params) override;
 
 private:
     // util func
@@ -126,17 +140,8 @@ public:
 
     ~VideoDevice();
 
-    void readAndEncode(const std::string& inFilename,
-                  const std::string& outFilename,
-                  ReampleParam&      resampleParam,
-                  const CodecParam&  encodeParam) override;
-
-    void readAndDecode(const std::string& inFilename,
-                            const std::string& outFilename,
-                            const CodecParam&  videoEncodeParam,
-                            int                outWidth,
-                            int                outHeight,
-                            int                outPixFormat);
+    void readAndEncode(ReadDeviceDataParam& params) override;
+    void readAndDecode(ReadDeviceDataParam& params) override;
 
 public:
     void writeImageToFile(std::ofstream& ofs, Frame& frame);

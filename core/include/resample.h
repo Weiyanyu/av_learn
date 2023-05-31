@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <utility>
+#include "../../utils/include/baseDefine.h"
 
 extern "C"
 {
