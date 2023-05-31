@@ -76,13 +76,13 @@ void testReadAudioFromDevice()
         .encodeParam = audioEncodeParam
     };
     // start record and save output file
-    device.readData("", "out.aac", swrCtxParam, encoderParam);
+    device.readAndEncode("", "out.aac", swrCtxParam, encoderParam);
 }
 
 void testReadAudioFromFile()
 {
     AudioDevice device("/home/yeonon/learn/av/demo/build/sample-6s.mp3", DeviceType::ENCAPSULATE_FILE);
-    device.readAudioDataToPCM("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
+    device.readAndDecode("out3.pcm", AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100);
 }
 
 void testReadPCMAndEncode()
@@ -117,13 +117,13 @@ void testReadPCMAndEncode()
         .logCtx = nullptr
     };
 
-    device.readData("/home/yeonon/learn/av/demo/build/out3.pcm", "out100.aac", swrCtxParam, encoderParam);
+    device.readAndEncode("/home/yeonon/learn/av/demo/build/out3.pcm", "out100.aac", swrCtxParam, encoderParam);
 }
 
 void testReadVideoDataFromFile()
 {
     VideoDevice device("/home/yeonon/learn/av/demo/build/file_example_MP4_1920_18MG.mp4", DeviceType::ENCAPSULATE_FILE);
-    device.readVideoDataToYUV("", "./out0.yuv", {}, 1920, 1080, AVPixelFormat::AV_PIX_FMT_YUV420P);
+    device.readAndDecode("", "./out0.yuv", {}, 1920, 1080, AVPixelFormat::AV_PIX_FMT_YUV420P);
 }
 
 void testReadImageDataAndEncodeVideo()
@@ -160,5 +160,5 @@ void testReadImageDataAndEncodeVideo()
     {
         .encodeParam = encodeParam,
     };
-    device.readData("out0.yuv", "out0.h264", scaleParam, codecParam);
+    device.readAndEncode("out0.yuv", "out0.h264", scaleParam, codecParam);
 }

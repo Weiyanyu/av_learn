@@ -38,9 +38,9 @@ VideoDevice::VideoDevice(const std::string& deviceName, DeviceType deviceType)
 
 VideoDevice::~VideoDevice() { }
 
-void VideoDevice::readData(const std::string& inFilename,
+void VideoDevice::readAndEncode(const std::string& inFilename,
                            const std::string& outFilename,
-                           ReampleParam&      reampleParam,
+                           ReampleParam&      resampleParam,
                            const CodecParam&  encodeParam)
 {
 
@@ -59,9 +59,9 @@ void VideoDevice::readData(const std::string& inFilename,
     // 3. creat frame
     VideoFrameParam vFrameParam{
         .enable    = true,
-        .width     = reampleParam.inWidth,
-        .height    = reampleParam.inHeight,
-        .pixFormat = reampleParam.inPixFmt,
+        .width     = resampleParam.inWidth,
+        .height    = resampleParam.inHeight,
+        .pixFormat = resampleParam.inPixFmt,
     };
     Frame frame(vFrameParam);
     int   frameBufferSize = av_image_get_buffer_size(
@@ -81,12 +81,12 @@ void VideoDevice::readData(const std::string& inFilename,
             .ofs        = ofs,
             .srcData    = srcBuffer,
             .frameSize  = frameBufferSize,
-            .inWidth    = reampleParam.inWidth,
-            .inHeight   = reampleParam.inHeight,
-            .inPixFmt   = reampleParam.inPixFmt,
-            .outWidth   = reampleParam.outWidth,
-            .outHeight  = reampleParam.outHeight,
-            .outPixFmt  = reampleParam.outPixFmt,
+            .inWidth    = resampleParam.inWidth,
+            .inHeight   = resampleParam.inHeight,
+            .inPixFmt   = resampleParam.inPixFmt,
+            .outWidth   = resampleParam.outWidth,
+            .outHeight  = resampleParam.outHeight,
+            .outPixFmt  = resampleParam.outPixFmt,
             .videoCodec = videoCodec,
             .frame      = frame,
             .pkt        = packet,
@@ -107,7 +107,7 @@ void VideoDevice::readData(const std::string& inFilename,
     }
 }
 
-void VideoDevice::readVideoDataToYUV(const std::string& inFilename,
+void VideoDevice::readAndDecode(const std::string& inFilename,
                                      const std::string& outFilename,
                                      const CodecParam&  videoEncodeParam,
                                      int                outWidth,

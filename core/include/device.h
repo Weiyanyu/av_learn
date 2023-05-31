@@ -70,9 +70,9 @@ public:
 
 public:
     // read data and encode
-    virtual void readData(const std::string& inFilename,
+    virtual void readAndEncode(const std::string& inFilename,
                           const std::string& outFilename,
-                          ReampleParam&      reampleParam,
+                          ReampleParam&      resampleParam,
                           const CodecParam&  encodeParam)
     { }
 
@@ -103,11 +103,11 @@ public:
 
     ~AudioDevice();
 
-    void readData(const std::string& inFilename,
+    void readAndEncode(const std::string& inFilename,
                   const std::string& outFilename,
-                  ReampleParam&      reampleParam,
+                  ReampleParam&      resampleParam,
                   const CodecParam&  encodeParam) override;
-    void readAudioDataToPCM(const std::string outputFilename,
+    void readAndDecode(const std::string outputFilename,
                             int64_t           outChannelLayout,
                             int               outSampleFmt,
                             int64_t           outSampleRate);
@@ -126,12 +126,12 @@ public:
 
     ~VideoDevice();
 
-    void readData(const std::string& inFilename,
+    void readAndEncode(const std::string& inFilename,
                   const std::string& outFilename,
-                  ReampleParam&      reampleParam,
+                  ReampleParam&      resampleParam,
                   const CodecParam&  encodeParam) override;
 
-    void readVideoDataToYUV(const std::string& inFilename,
+    void readAndDecode(const std::string& inFilename,
                             const std::string& outFilename,
                             const CodecParam&  videoEncodeParam,
                             int                outWidth,

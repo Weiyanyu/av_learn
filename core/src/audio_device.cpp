@@ -37,9 +37,9 @@ AudioDevice::AudioDevice(const std::string& deviceName, DeviceType deviceType)
 
 AudioDevice::~AudioDevice() { }
 
-void AudioDevice::readData(const std::string& inFilename,
+void AudioDevice::readAndEncode(const std::string& inFilename,
                            const std::string& outFilename,
-                           ReampleParam&      reampleParam,
+                           ReampleParam&      resampleParam,
                            const CodecParam&  audioEncodeParam)
 {
     // 0. decied if is read from stream(file)
@@ -95,10 +95,10 @@ void AudioDevice::readData(const std::string& inFilename,
     AV_LOG_D("frameSize %d", frameSize);
 
     // 4. create dst buffer, input samples, output samples, etc...
-    int inSampleSize  = av_get_bytes_per_sample(reampleParam.inSampleFmt);
-    int inChannels    = av_get_channel_layout_nb_channels(reampleParam.inChannelLayout);
-    int outSampleSize = av_get_bytes_per_sample(reampleParam.outSampleFmt);
-    int outChannels   = av_get_channel_layout_nb_channels(reampleParam.outChannelLayout);
+    int inSampleSize  = av_get_bytes_per_sample(resampleParam.inSampleFmt);
+    int inChannels    = av_get_channel_layout_nb_channels(resampleParam.inChannelLayout);
+    int outSampleSize = av_get_bytes_per_sample(resampleParam.outSampleFmt);
+    int outChannels   = av_get_channel_layout_nb_channels(resampleParam.outChannelLayout);
     int inSamples     = std::ceil(frameSize / inChannels / inSampleSize);
     int outSamples    = std::ceil(frameSize / outChannels / outSampleSize);
 
@@ -113,8 +113,8 @@ void AudioDevice::readData(const std::string& inFilename,
         "outputBufferSize %d inSamples %d outSamples %d", outputBufferSize, inSamples, outSamples);
 
     // 5. create swr
-    reampleParam.fullOutputBufferSize = outputBufferSize;
-    SwrConvertor swrConvertor(reampleParam);
+    resampleParam.fullOutputBufferSize = outputBufferSize;
+    SwrConvertor swrConvertor(resampleParam);
 
     // 6. create a frame
     AudioFrameParam AudioFrameParam = {
@@ -193,7 +193,7 @@ void AudioDevice::readData(const std::string& inFilename,
     }
 }
 
-void AudioDevice::readAudioDataToPCM(const std::string outputFilename,
+void AudioDevice::readAndDecode(const std::string outputFilename,
                                      int64_t           outChannelLayout,
                                      int               outSampleFmt,
                                      int64_t           outSampleRate)

@@ -37,7 +37,7 @@ class SwrConvertor
 {
 public:
     SwrConvertor() = default;
-    SwrConvertor(const ReampleParam& reampleParam);
+    SwrConvertor(const ReampleParam& resampleParam);
 
     // dsiable copy-ctor and move-ctor
     SwrConvertor(const SwrConvertor&) = delete;
