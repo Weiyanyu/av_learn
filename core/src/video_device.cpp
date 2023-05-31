@@ -38,16 +38,13 @@ VideoDevice::VideoDevice(const std::string& deviceName, DeviceType deviceType)
 
 VideoDevice::~VideoDevice() { }
 
-void VideoDevice::readAndEncode(const std::string& inFilename,
-                           const std::string& outFilename,
-                           ReampleParam&      resampleParam,
-                           const CodecParam&  encodeParam)
+void VideoDevice::readAndEncode(ReadDeviceDataParam& params)
 {
 
-    bool isReadFromStream = inFilename != "";
+    bool isReadFromStream = params.inFilename != "";
 
     // 1. create video codec
-    VideoCodec videoCodec(encodeParam);
+    VideoCodec videoCodec(params.codecParam);
 
     // 2. create packet
     AVPacket* packet = av_packet_alloc();
@@ -59,17 +56,17 @@ void VideoDevice::readAndEncode(const std::string& inFilename,
     // 3. creat frame
     VideoFrameParam vFrameParam{
         .enable    = true,
-        .width     = resampleParam.inWidth,
-        .height    = resampleParam.inHeight,
-        .pixFormat = resampleParam.inPixFmt,
+        .width     = params.resampleParam.inWidth,
+        .height    = params.resampleParam.inHeight,
+        .pixFormat = params.resampleParam.inPixFmt,
     };
     Frame frame(vFrameParam);
     int   frameBufferSize = av_image_get_buffer_size(
         (AVPixelFormat)vFrameParam.pixFormat, vFrameParam.width, vFrameParam.height, 32);
     AV_LOG_D("frameBufferSize %d", frameBufferSize);
 
-    std::ifstream ifs(inFilename, std::ios::in);
-    std::ofstream ofs(outFilename, std::ios::out);
+    std::ifstream ifs(params.inFilename, std::ios::in);
+    std::ofstream ofs(params.outFilename, std::ios::out);
 
     // 4. read from stream
     if(isReadFromStream)
@@ -81,12 +78,12 @@ void VideoDevice::readAndEncode(const std::string& inFilename,
             .ofs        = ofs,
             .srcData    = srcBuffer,
             .frameSize  = frameBufferSize,
-            .inWidth    = resampleParam.inWidth,
-            .inHeight   = resampleParam.inHeight,
-            .inPixFmt   = resampleParam.inPixFmt,
-            .outWidth   = resampleParam.outWidth,
-            .outHeight  = resampleParam.outHeight,
-            .outPixFmt  = resampleParam.outPixFmt,
+            .inWidth    = params.resampleParam.inWidth,
+            .inHeight   = params.resampleParam.inHeight,
+            .inPixFmt   = params.resampleParam.inPixFmt,
+            .outWidth   = params.resampleParam.outWidth,
+            .outHeight  = params.resampleParam.outHeight,
+            .outPixFmt  = params.resampleParam.outPixFmt,
             .videoCodec = videoCodec,
             .frame      = frame,
             .pkt        = packet,
@@ -107,12 +104,7 @@ void VideoDevice::readAndEncode(const std::string& inFilename,
     }
 }
 
-void VideoDevice::readAndDecode(const std::string& inFilename,
-                                     const std::string& outFilename,
-                                     const CodecParam&  videoEncodeParam,
-                                     int                outWidth,
-                                     int                outHeight,
-                                     int                outPixFormat)
+void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
 {
     if(getDeviceType() != DeviceType::ENCAPSULATE_FILE)
     {
@@ -156,19 +148,19 @@ void VideoDevice::readAndDecode(const std::string& inFilename,
     std::unique_ptr<Frame> swsOutFrame;
 
     int outputBufferSize =
-        av_image_get_buffer_size((AVPixelFormat)outPixFormat, outWidth, outHeight, 1);
+        av_image_get_buffer_size((AVPixelFormat)params.outPixFormat, params.outWidth, params.outHeight, 1);
     AV_LOG_D("outputBufferSize %d", outputBufferSize);
 
     bool        isNeedSws = false;
     SwsContext* swsCtx    = nullptr;
-    if(inWidth != outWidth || inHeight != outHeight || inPixFmt != outPixFormat)
+    if(inWidth != params.outWidth || inHeight != params.outHeight || inPixFmt != params.outPixFormat)
     {
         swsCtx = sws_getContext(inWidth,
                                 inHeight,
                                 (AVPixelFormat)inPixFmt,
-                                outWidth,
-                                outHeight,
-                                (AVPixelFormat)outPixFormat,
+                                params.outWidth,
+                                params.outHeight,
+                                (AVPixelFormat)params.outPixFormat,
                                 SWS_BICUBIC,
                                 nullptr,
                                 nullptr,
@@ -177,21 +169,21 @@ void VideoDevice::readAndDecode(const std::string& inFilename,
         {
             VideoFrameParam swsOutVfp{
                 .enable    = true,
-                .width     = outWidth,
-                .height    = outHeight,
-                .pixFormat = outPixFormat,
+                .width     = params.outWidth,
+                .height    = params.outHeight,
+                .pixFormat = params.outPixFormat,
             };
             swsOutFrame = std::make_unique<Frame>(swsOutVfp);
             isNeedSws   = true;
         }
-        AV_LOG_D("sws in w/h %d/%d out w/h %d/%d", inWidth, inHeight, outWidth, outHeight);
+        AV_LOG_D("sws in w/h %d/%d out w/h %d/%d", inWidth, inHeight, params.outWidth, params.outHeight);
     }
     if(!isNeedSws)
     {
         AV_LOG_D("don't need sws");
     }
 
-    std::ofstream ofs(outFilename);
+    std::ofstream ofs(params.outFilename);
 
     // 7. decodec callback
     auto decodecCB = [&](Frame& frame) {
