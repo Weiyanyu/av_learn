@@ -193,6 +193,7 @@ void Codec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush
             return;
         }
         cb(pkt);
+        av_packet_unref(pkt);
     }
 }
 

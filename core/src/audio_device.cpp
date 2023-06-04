@@ -232,21 +232,21 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
     Frame frame;
 
     // 5. calc out Buffer size
-    int      outSampleSize    = av_get_bytes_per_sample(static_cast<AVSampleFormat>(params.outSampleFmt));
-    int      outChannels      = av_get_channel_layout_nb_channels(params.outChannelLayout);
-    int      outputBufferSize = outSampleSize * outChannels * params.outSampleRate;
-    uint8_t* dstData          = static_cast<uint8_t*>(av_malloc(outputBufferSize));
+    int outSampleSize = av_get_bytes_per_sample(static_cast<AVSampleFormat>(params.outSampleFmt));
+    int outChannels   = av_get_channel_layout_nb_channels(params.outChannelLayout);
+    int outputBufferSize = outSampleSize * outChannels * params.outSampleRate;
+    uint8_t* dstData     = static_cast<uint8_t*>(av_malloc(outputBufferSize));
     AV_LOG_D("outputBufferSize %d", outputBufferSize);
 
     // 6. create swrConvetro
-    ReampleParam swrCtxParam = {.outChannelLayout     = params.outChannelLayout,
-                                .outSampleFmt         = static_cast<AVSampleFormat>(params.outSampleFmt),
-                                .outSampleRate        = params.outSampleRate,
-                                .inChannelLayout      = (int64_t)audioCodec.channelLayout(false),
-                                .inSampleFmt          = (AVSampleFormat)audioCodec.format(false),
-                                .inSampleRate         = audioCodec.sampleRate(false),
-                                .logOffset            = 0,
-                                .logCtx               = nullptr,
+    ReampleParam swrCtxParam = {.outChannelLayout = params.outChannelLayout,
+                                .outSampleFmt    = static_cast<AVSampleFormat>(params.outSampleFmt),
+                                .outSampleRate   = params.outSampleRate,
+                                .inChannelLayout = (int64_t)audioCodec.channelLayout(false),
+                                .inSampleFmt     = (AVSampleFormat)audioCodec.format(false),
+                                .inSampleRate    = audioCodec.sampleRate(false),
+                                .logOffset       = 0,
+                                .logCtx          = nullptr,
                                 .fullOutputBufferSize = outputBufferSize};
     SwrConvertor swrConvertor(swrCtxParam);
 
@@ -254,8 +254,9 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
     auto decodecCB = [&](Frame& frame) {
         if(swrConvertor.enable())
         {
-            int64_t dst_nb_samples = swrConvertor.calcNBSample(
-                frame.getAVFrame()->sample_rate, frame.getAVFrame()->nb_samples, params.outSampleRate);
+            int64_t dst_nb_samples = swrConvertor.calcNBSample(frame.getAVFrame()->sample_rate,
+                                                               frame.getAVFrame()->nb_samples,
+                                                               params.outSampleRate);
             auto [outputData, outputSize] = swrConvertor.convert(frame.data(),
                                                                  frame.lineSize(0),
                                                                  &dstData,

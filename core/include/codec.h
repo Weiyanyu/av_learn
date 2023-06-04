@@ -75,7 +75,6 @@ struct CodecParam
     DecoderParam decodeParam;
 };
 
-
 class Codec
 {
 public:

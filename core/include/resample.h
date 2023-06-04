@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../../utils/include/baseDefine.h"
 #include <cstdint>
 #include <utility>
-#include "../../utils/include/baseDefine.h"
 
 extern "C"
 {

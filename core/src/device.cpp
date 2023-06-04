@@ -30,7 +30,7 @@ Device::Device()
     , m_deviceType(DeviceType::PURE_FILE)
 { }
 
-Device::Device(const std::string& deviceName, DeviceType deviceType)
+Device::Device(const std::string& deviceName, DeviceType deviceType, AVDictionary* options)
     : m_deviceName(deviceName)
     , m_deviceType(deviceType)
 {
@@ -56,7 +56,10 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
         return;
     }
 
-    AVDictionary* options = nullptr;
+    if(deviceType == DeviceType::VIDEO)
+    {
+    }
+
     // open device
     if(auto ret = avformat_open_input(&m_fmtCtx, url.c_str(), inputFormat, &options); ret < 0)
     {
@@ -70,7 +73,7 @@ Device::Device(const std::string& deviceName, DeviceType deviceType)
         AV_LOG_D("success to open audio device(%s)", m_deviceName.c_str());
     }
 
-    if(deviceType == DeviceType::ENCAPSULATE_FILE)
+    if(deviceType == DeviceType::ENCAPSULATE_FILE || deviceType == DeviceType::VIDEO)
     {
         if(avformat_find_stream_info(m_fmtCtx, NULL) < 0)
         {

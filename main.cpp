@@ -27,9 +27,11 @@ void initParam()
 
 void testReadAudioFromDevice();
 void testReadAudioFromFile();
+void testReadPCMAndEncode();
+
+void testReadVideoFromDevice();
 void testReadImageDataAndEncodeVideo();
 void testReadVideoDataFromFile();
-void testReadPCMAndEncode();
 
 int main()
 {
@@ -38,7 +40,8 @@ int main()
     // testReadAudioFromFile();
     // testReadPCMAndEncode();
     // testReadVideoDataFromFile();
-    testReadImageDataAndEncodeVideo();
+    // testReadImageDataAndEncodeVideo();
+    testReadVideoFromDevice();
     return 0;
 }
 
@@ -179,14 +182,14 @@ void testReadImageDataAndEncodeVideo()
         .bitRate = 600000,
         .profile = FF_PROFILE_H264_HIGH_444,
         .level = 50,
-        .width = 1280,
-        .height = 720,
+        .width = scaleParam.outWidth,
+        .height = scaleParam.outHeight,
         .gopSize = 250,
         .keyintMin = 50,
         .maxBFrame = 3,
         .hasBFrame = 1,
         .refs = 3,
-        .pixFmt = AVPixelFormat::AV_PIX_FMT_YUV420P,
+        .pixFmt = AVPixelFormat(scaleParam.outPixFmt),
         .framerate = 15,
         .byName = true
     };
@@ -204,4 +207,55 @@ void testReadImageDataAndEncodeVideo()
     };
 
     device.readAndEncode(readParams);
+}
+
+void testReadVideoFromDevice()
+{
+    AVDictionary* options = nullptr;
+    av_dict_set(&options, "avioflags", "direct", 0);
+    av_dict_set(&options, "video_size", "1920x1080", 0);
+    av_dict_set(&options, "framerate", "15", 0);
+    av_dict_set(&options, "vcodec", "mjpeg", 0);
+    av_dict_set(&options, "input_format", "mjpeg", 0);
+
+    VideoDevice device("/dev/video0", DeviceType::VIDEO, options);
+
+    ReampleParam scaleParam
+    {
+        .outWidth = 1920,
+        .outHeight = 1080,
+        .outPixFmt = AVPixelFormat::AV_PIX_FMT_YUV420P,
+    };
+
+    EncoderParam encodeParam
+    {
+        .needEncode = true,
+        .codecName = "libx264",
+        .bitRate = 600000,
+        .profile = FF_PROFILE_H264_HIGH_444,
+        .level = 50,
+        .width = scaleParam.outWidth,
+        .height = scaleParam.outHeight,
+        .gopSize = 250,
+        .keyintMin = 50,
+        .maxBFrame = 3,
+        .hasBFrame = 1,
+        .refs = 3,
+        .pixFmt = AVPixelFormat(scaleParam.outPixFmt),
+        .framerate = 15,
+        .byName = true
+    };
+    CodecParam codecParam
+    {
+        .encodeParam = encodeParam,
+    };
+
+    ReadDeviceDataParam param
+    {
+        .outFilename = "out3.h264",
+        .resampleParam = scaleParam,
+        .codecParam = codecParam,
+    };
+
+    device.readAndEncode(param);
 }

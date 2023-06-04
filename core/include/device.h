@@ -1,9 +1,14 @@
 #pragma once
 
-#include <string>
+#include "../../utils/include/baseDefine.h"
 #include "codec.h"
 #include "resample.h"
-#include "../../utils/include/baseDefine.h"
+#include <string>
+
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <queue>
 
 class AVFormatContext;
 class SwrContext;
@@ -15,6 +20,7 @@ class AudioCodec;
 class VideoCodec;
 class AVPacket;
 class SwrConvertor;
+class AVDictionary;
 
 enum class DeviceType : int
 {
@@ -61,26 +67,26 @@ struct VideoReaderParam
 struct ReadDeviceDataParam
 {
     // common
-    std::string inFilename;
-    std::string outFilename;
+    std::string  inFilename;
+    std::string  outFilename;
     ReampleParam resampleParam;
-    CodecParam  codecParam;
+    CodecParam   codecParam;
 
     // audio
-    int64_t           outChannelLayout;
-    int               outSampleFmt;
-    int               outSampleRate;
+    int64_t outChannelLayout;
+    int     outSampleFmt;
+    int     outSampleRate;
     // video
-    int                outWidth;
-    int                outHeight;
-    int                outPixFormat;
+    int outWidth;
+    int outHeight;
+    int outPixFormat;
 };
 
 class Device
 {
 public:
     Device();
-    Device(const std::string& deviceName, DeviceType deviceType);
+    Device(const std::string& deviceName, DeviceType deviceType, AVDictionary* option = nullptr);
     // dsiable copy-ctor and move-ctor
     Device(const Device&) = delete;
     Device& operator=(const Device) = delete;
@@ -91,10 +97,8 @@ public:
 
 public:
     // read data and encode
-    virtual void readAndEncode(ReadDeviceDataParam& params)
-    { }
-    virtual void readAndDecode(ReadDeviceDataParam& params)
-    { }
+    virtual void readAndEncode(ReadDeviceDataParam& params) { }
+    virtual void readAndDecode(ReadDeviceDataParam& params) { }
 
 protected:
     int findStreamIdxByMediaType(int mediaType);
@@ -136,7 +140,9 @@ class VideoDevice : public Device
 {
 public:
     VideoDevice();
-    VideoDevice(const std::string& deviceName, DeviceType deviceType);
+    VideoDevice(const std::string& deviceName,
+                DeviceType         deviceType,
+                AVDictionary*      option = nullptr);
 
     ~VideoDevice();
 
@@ -148,4 +154,5 @@ public:
 
 private:
     void readVideoFromStream(VideoReaderParam& param);
+    void readVideoFromHWDevice(VideoReaderParam& param);
 };

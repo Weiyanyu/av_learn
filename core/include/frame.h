@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include "../../utils/include/baseDefine.h"
+#include <cstdint>
 
 struct AudioFrameParam
 {
@@ -60,7 +60,17 @@ public:
     int width() const;
     int heigt() const;
 
+    void setComplete(bool value)
+    {
+        m_isComplete = value;
+    }
+    bool isComplete() const
+    {
+        return m_isComplete;
+    }
+
 private:
     AVFrame* m_avFrame;
     bool     m_valid;
+    bool     m_isComplete = false;
 };
