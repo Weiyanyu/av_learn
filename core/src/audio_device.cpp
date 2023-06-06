@@ -49,6 +49,8 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
 
     // 1. init param
     std::ofstream ofs(params.outFilename, std::ios::out);
+    std::ifstream ifs(params.inFilename, std::ios::in);
+
     AVPacket      audioPacket;
     int           frameSize = 0;
     av_init_packet(&audioPacket);
@@ -130,45 +132,36 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
         return;
     }
 
+
+
+    AudioReaderParam param{.ifs          = ifs,
+                            .ofs          = ofs,
+                            .srcData      = nullptr,
+                            .dstData      = dstData,
+                            .frameSize    = frameSize,
+                            .inSamples    = inSamples,
+                            .outSamples   = outSamples,
+                            .swrConvertor = swrConvertor,
+                            .audioCodec   = audioCodec,
+                            .frame        = frame,
+                            .pkt          = newPkt};
+
     // 8. read and write/encode audio data
     if(!readFromStream)
     {
         // from hw device
-        std::ifstream    ifs;
-        AudioReaderParam param{.ifs          = ifs,
-                               .ofs          = ofs,
-                               .dstData      = dstData,
-                               .inSamples    = inSamples,
-                               .outSamples   = outSamples,
-                               .swrConvertor = swrConvertor,
-                               .audioCodec   = audioCodec,
-                               .frame        = frame,
-                               .pkt          = newPkt};
         readAudioFromHWDevice(param);
     }
     else
     {
         // from stream/file
-        std::ifstream ifs(params.inFilename, std::ios::in);
         uint8_t*      srcBuffer = static_cast<uint8_t*>(av_malloc(frameSize));
         if(!srcBuffer)
         {
             AV_LOG_E("Failed to src buffer");
             return;
         }
-
-        AudioReaderParam param{.ifs          = ifs,
-                               .ofs          = ofs,
-                               .srcData      = srcBuffer,
-                               .dstData      = dstData,
-                               .frameSize    = frameSize,
-                               .inSamples    = inSamples,
-                               .outSamples   = outSamples,
-                               .swrConvertor = swrConvertor,
-                               .audioCodec   = audioCodec,
-                               .frame        = frame,
-                               .pkt          = newPkt};
-
+        param.srcData = srcBuffer;
         readAudioFromStream(param);
 
         // release src buffer

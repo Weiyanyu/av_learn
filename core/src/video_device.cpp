@@ -102,28 +102,28 @@ void VideoDevice::readAndEncode(ReadDeviceDataParam& params)
     std::ifstream ifs(params.inFilename, std::ios::in);
     std::ofstream ofs(params.outFilename, std::ios::out);
 
+
+    VideoReaderParam vReaderParam{
+        .ifs        = ifs,
+        .ofs        = ofs,
+        .srcData    = nullptr,
+        .frameSize  = frameBufferSize,
+        .inWidth    = params.resampleParam.inWidth,
+        .inHeight   = params.resampleParam.inHeight,
+        .inPixFmt   = params.resampleParam.inPixFmt,
+        .outWidth   = params.resampleParam.outWidth,
+        .outHeight  = params.resampleParam.outHeight,
+        .outPixFmt  = params.resampleParam.outPixFmt,
+        .videoCodec = videoCodec,
+        .frame      = frame,
+        .pkt        = packet,
+    };
     // 4. read from stream
     if(isReadFromStream)
     {
         uint8_t* srcBuffer = static_cast<uint8_t*>(av_malloc(frameBufferSize));
-
-        VideoReaderParam vReaderParam{
-            .ifs        = ifs,
-            .ofs        = ofs,
-            .srcData    = srcBuffer,
-            .frameSize  = frameBufferSize,
-            .inWidth    = params.resampleParam.inWidth,
-            .inHeight   = params.resampleParam.inHeight,
-            .inPixFmt   = params.resampleParam.inPixFmt,
-            .outWidth   = params.resampleParam.outWidth,
-            .outHeight  = params.resampleParam.outHeight,
-            .outPixFmt  = params.resampleParam.outPixFmt,
-            .videoCodec = videoCodec,
-            .frame      = frame,
-            .pkt        = packet,
-        };
+        vReaderParam.srcData = srcBuffer;
         readVideoFromStream(vReaderParam);
-
         // 4.1 release buffer
         if(srcBuffer)
         {
@@ -132,21 +132,6 @@ void VideoDevice::readAndEncode(ReadDeviceDataParam& params)
     }
     else
     {
-        VideoReaderParam vReaderParam{
-            .ifs        = ifs,
-            .ofs        = ofs,
-            .srcData    = nullptr,
-            .frameSize  = frameBufferSize,
-            .inWidth    = params.resampleParam.inWidth,
-            .inHeight   = params.resampleParam.inHeight,
-            .inPixFmt   = params.resampleParam.inPixFmt,
-            .outWidth   = params.resampleParam.outWidth,
-            .outHeight  = params.resampleParam.outHeight,
-            .outPixFmt  = params.resampleParam.outPixFmt,
-            .videoCodec = videoCodec,
-            .frame      = frame,
-            .pkt        = packet,
-        };
         readVideoFromHWDevice(vReaderParam);
     }
 
