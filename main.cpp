@@ -40,8 +40,8 @@ int main()
     // testReadAudioFromFile();
     // testReadPCMAndEncode();
     // testReadVideoDataFromFile();
-    // testReadImageDataAndEncodeVideo();
-    testReadVideoFromDevice();
+    testReadImageDataAndEncodeVideo();
+    // testReadVideoFromDevice();
     return 0;
 }
 

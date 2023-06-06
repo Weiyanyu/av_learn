@@ -77,7 +77,7 @@ void VideoDevice::readAndEncode(ReadDeviceDataParam& params)
         }
     }
 
-    VideoCodec videoCodec(params.codecParam);
+    auto videoCodec = std::make_shared<VideoCodec>(params.codecParam);
 
     // 2. create packet
     AVPacket* packet = av_packet_alloc();
@@ -94,7 +94,7 @@ void VideoDevice::readAndEncode(ReadDeviceDataParam& params)
         .height    = params.resampleParam.inHeight,
         .pixFormat = params.resampleParam.inPixFmt,
     };
-    Frame frame(vFrameParam);
+    auto frame = std::make_shared<Frame>(vFrameParam);
     int   frameBufferSize = av_image_get_buffer_size(
         (AVPixelFormat)vFrameParam.pixFormat, vFrameParam.width, vFrameParam.height, 32);
     AV_LOG_D("frameBufferSize %d", frameBufferSize);
@@ -161,7 +161,7 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
                              .avCodecPar = fmtCtx->streams[videoStreamIdx]->codecpar,
                              .byId       = true};
     CodecParam   codecParam = {.decodeParam = decodeParam};
-    VideoCodec   videoCodec(codecParam);
+    auto videoCodec = std::make_shared<VideoCodec>(codecParam);
 
     AV_LOG_D("video format %s", fmtCtx->iformat->name);
     AV_LOG_D("video time %lds", (fmtCtx->duration) / 1000000);
@@ -172,9 +172,9 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
         AV_LOG_E("can't alloct packet");
         return;
     }
-    int inWidth  = videoCodec.width(false);
-    int inHeight = videoCodec.height(false);
-    int inPixFmt = videoCodec.pixFormat(false);
+    int inWidth  = videoCodec->width(false);
+    int inHeight = videoCodec->height(false);
+    int inPixFmt = videoCodec->pixFormat(false);
 
     VideoFrameParam vfp{
         .enable    = true,
@@ -182,8 +182,8 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
         .height    = inHeight,
         .pixFormat = inPixFmt,
     };
-    Frame                  frame(vfp);
-    std::unique_ptr<Frame> swsOutFrame;
+    auto frame = std::make_shared<Frame>(vfp);
+    std::shared_ptr<Frame> swsOutFrame;
 
     int outputBufferSize = av_image_get_buffer_size(
         (AVPixelFormat)params.outPixFormat, params.outWidth, params.outHeight, 1);
@@ -212,7 +212,7 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
                 .height    = params.outHeight,
                 .pixFormat = params.outPixFormat,
             };
-            swsOutFrame = std::make_unique<Frame>(swsOutVfp);
+            swsOutFrame = std::make_shared<Frame>(swsOutVfp);
             isNeedSws   = true;
         }
         AV_LOG_D(
@@ -226,17 +226,17 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
     std::ofstream ofs(params.outFilename);
 
     // 7. decodec callback
-    auto decodecCB = [&](Frame& frame) {
+    auto decodecCB = [&](std::shared_ptr<Frame> frame) {
         if(isNeedSws)
         {
             sws_scale(swsCtx,
-                      frame.data(),
-                      frame.lineSize(),
+                      frame->data(),
+                      frame->lineSize(),
                       0,
                       inHeight,
                       swsOutFrame->data(),
                       swsOutFrame->lineSize());
-            writeImageToFile(ofs, (*swsOutFrame.get()));
+            writeImageToFile(ofs, swsOutFrame);
         }
         else
         {
@@ -248,17 +248,17 @@ void VideoDevice::readAndDecode(ReadDeviceDataParam& params)
     {
         if(packet->stream_index == videoStreamIdx)
         {
-            if(videoCodec.decodeEnable())
+            if(videoCodec->decodeEnable())
             {
-                videoCodec.decode(frame, packet, decodecCB);
+                videoCodec->decode(frame, packet, decodecCB);
             }
         }
         av_packet_unref(packet);
     }
 
-    if(videoCodec.decodeEnable())
+    if(videoCodec->decodeEnable())
     {
-        videoCodec.decode(frame, packet, decodecCB, true);
+        videoCodec->decode(frame, packet, decodecCB, true);
     }
 
     // release resource
@@ -282,7 +282,7 @@ void VideoDevice::readVideoFromStream(VideoReaderParam& param)
     };
 
     SwsContext*            swsCtx = nullptr;
-    std::unique_ptr<Frame> pSwrOutFrame;
+    std::shared_ptr<Frame> pSwrOutFrame;
     bool                   isNeedSws = false;
     if(param.inWidth != param.outWidth || param.inHeight != param.outHeight ||
        param.inPixFmt != param.outPixFmt)
@@ -305,7 +305,7 @@ void VideoDevice::readVideoFromStream(VideoReaderParam& param)
                 .height    = param.outHeight,
                 .pixFormat = param.outPixFmt,
             };
-            pSwrOutFrame = std::make_unique<Frame>(vFrameParam);
+            pSwrOutFrame = std::make_shared<Frame>(vFrameParam);
             isNeedSws    = true;
         }
         AV_LOG_D("sws in w/h %d/%d out w/h %d/%d",
@@ -321,22 +321,22 @@ void VideoDevice::readVideoFromStream(VideoReaderParam& param)
 
     while((n = param.ifs.readsome((char*)param.srcData, param.frameSize)) > 0)
     {
-        param.frame.writeImageData(
+        param.frame->writeImageData(
             param.srcData, (AVPixelFormat)param.inPixFmt, param.inWidth, param.inHeight);
         if(isNeedSws)
         {
             sws_scale(swsCtx,
-                      param.frame.data(),
-                      param.frame.lineSize(),
+                      param.frame->data(),
+                      param.frame->lineSize(),
                       0,
                       param.inHeight,
                       pSwrOutFrame->data(),
                       pSwrOutFrame->lineSize());
             pSwrOutFrame->getAVFrame()->pts++;
 
-            if(param.videoCodec.encodeEnable())
+            if(param.videoCodec->encodeEnable())
             {
-                param.videoCodec.encode((*pSwrOutFrame.get()), param.pkt, encodeCallback);
+                param.videoCodec->encode(pSwrOutFrame, param.pkt, encodeCallback);
             }
             else
             {
@@ -345,10 +345,10 @@ void VideoDevice::readVideoFromStream(VideoReaderParam& param)
         }
         else
         {
-            param.frame.getAVFrame()->pts++;
-            if(param.videoCodec.encodeEnable())
+            param.frame->getAVFrame()->pts++;
+            if(param.videoCodec->encodeEnable())
             {
-                param.videoCodec.encode(param.frame, param.pkt, encodeCallback);
+                param.videoCodec->encode(param.frame, param.pkt, encodeCallback);
             }
             else
             {
@@ -357,9 +357,9 @@ void VideoDevice::readVideoFromStream(VideoReaderParam& param)
         }
     }
 
-    if(param.videoCodec.encodeEnable())
+    if(param.videoCodec->encodeEnable())
     {
-        param.videoCodec.encode(param.frame, param.pkt, encodeCallback, true);
+        param.videoCodec->encode(param.frame, param.pkt, encodeCallback, true);
     }
 
     if(swsCtx)
@@ -380,9 +380,9 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
     //1. init param
     auto*                  fmtCtx = getFmtCtx();
     SwsContext*            swsCtx = nullptr;
-    std::unique_ptr<Frame> pSwrOutFrame;
+    std::shared_ptr<Frame> pSwrOutFrame;
     bool                   isNeedSws    = false;
-    bool                   isNeedDecode = param.videoCodec.decodeEnable();
+    bool                   isNeedDecode = param.videoCodec->decodeEnable();
     param.inPixFmt                      = convertDeprecatedFormat(param.inPixFmt);
 
     //2. check if need sws
@@ -407,7 +407,7 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
                 .height    = param.outHeight,
                 .pixFormat = param.outPixFmt,
             };
-            pSwrOutFrame = std::make_unique<Frame>(vFrameParam);
+            pSwrOutFrame = std::make_shared<Frame>(vFrameParam);
             isNeedSws    = true;
         }
         AV_LOG_D("sws in w/h %d/%d fmt %d out w/h %d/%d fmt %d",
@@ -424,7 +424,7 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
     }
 
     // 3. check if need decode
-    std::unique_ptr<Frame> pDecodeFrame;
+    std::shared_ptr<Frame> pDecodeFrame;
     if(isNeedDecode)
     {
         VideoFrameParam vDecodeFrameParam{
@@ -433,7 +433,7 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
             .height    = param.inHeight,
             .pixFormat = param.inPixFmt,
         };
-        pDecodeFrame = std::make_unique<Frame>(vDecodeFrameParam);
+        pDecodeFrame = std::make_shared<Frame>(vDecodeFrameParam);
     }
 
     // 4. create packet
@@ -451,45 +451,45 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
     };
 
     // 5. encode process
-    auto encodeProcess = [&](Frame& frame) {
+    auto encodeProcess = [&](std::shared_ptr<Frame> frame) {
         if(isNeedSws)
         {
             sws_scale(swsCtx,
-                      frame.data(),
-                      frame.lineSize(),
+                      frame->data(),
+                      frame->lineSize(),
                       0,
                       param.inHeight,
                       pSwrOutFrame->data(),
                       pSwrOutFrame->lineSize());
             pSwrOutFrame->getAVFrame()->pts = basePts++;
-            if(param.videoCodec.encodeEnable())
+            if(param.videoCodec->encodeEnable())
             {
-                param.videoCodec.encode(*pSwrOutFrame, newPkt, encodeCallback);
+                param.videoCodec->encode(pSwrOutFrame, newPkt, encodeCallback);
             }
             else
             {
-                writeImageToFile(param.ofs, *pSwrOutFrame);
+                writeImageToFile(param.ofs, pSwrOutFrame);
             }
         }
         else
         {
-            param.frame.getAVFrame()->pts = basePts++;
-            if(param.videoCodec.encodeEnable())
+            param.frame->getAVFrame()->pts = basePts++;
+            if(param.videoCodec->encodeEnable())
             {
-                param.videoCodec.encode(frame, newPkt, encodeCallback);
+                param.videoCodec->encode(frame, newPkt, encodeCallback);
             }
             else
             {
                 writeImageToFile(param.ofs, frame);
             }
         }
-        param.frame.setComplete(false);
+        param.frame->setComplete(false);
     };
 
     // 6. decodec callback
-    auto decodecCB = [&](Frame& frame) {
-        av_frame_copy_props(param.frame.getAVFrame(), frame.getAVFrame());
-        av_frame_copy(param.frame.getAVFrame(), frame.getAVFrame());
+    auto decodecCB = [&](std::shared_ptr<Frame> frame) {
+        av_frame_copy_props(param.frame->getAVFrame(), frame->getAVFrame());
+        av_frame_copy(param.frame->getAVFrame(), frame->getAVFrame());
     };
 
     // 7. start recieve data from hw device
@@ -497,21 +497,21 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
     {
         if(isNeedDecode)
         {
-            param.videoCodec.decode(*pDecodeFrame, param.pkt, decodecCB);
+            param.videoCodec->decode(pDecodeFrame, param.pkt, decodecCB);
             encodeProcess(param.frame);
         }
         else
         {
-            param.frame.writeImageData(
+            param.frame->writeImageData(
                 param.pkt->data, param.inPixFmt, param.inWidth, param.inHeight);
             encodeProcess(param.frame);
         }
     }
 
     // 8. flush encoder
-    if(param.videoCodec.encodeEnable())
+    if(param.videoCodec->encodeEnable())
     {
-        param.videoCodec.encode(param.frame, param.pkt, encodeCallback, true);
+        param.videoCodec->encode(param.frame, param.pkt, encodeCallback, true);
     }
 
     // 9. release resource
@@ -526,30 +526,30 @@ void VideoDevice::readVideoFromHWDevice(VideoReaderParam& param)
     }
 }
 
-void VideoDevice::writeImageToFile(std::ofstream& ofs, Frame& frame)
+void VideoDevice::writeImageToFile(std::ofstream& ofs, std::shared_ptr<Frame> frame)
 {
-    int format = convertDeprecatedFormat(frame.format());
+    int format = convertDeprecatedFormat(frame->format());
     if(format == AVPixelFormat::AV_PIX_FMT_YUV420P)
     {
-        int y_size = frame.width() * frame.heigt();
+        int y_size = frame->width() * frame->heigt();
         int u_size = y_size / 4;
         int v_size = y_size / 4;
-        ofs.write(reinterpret_cast<char*>(frame.data()[0]), y_size);
-        ofs.write(reinterpret_cast<char*>(frame.data()[1]), u_size);
-        ofs.write(reinterpret_cast<char*>(frame.data()[2]), v_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[0]), y_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[1]), u_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[2]), v_size);
     }
     else if(format == AVPixelFormat::AV_PIX_FMT_YUV422P)
     {
-        int y_size = frame.width() * frame.heigt();
+        int y_size = frame->width() * frame->heigt();
         int u_size = y_size / 2;
         int v_size = y_size / 2;
-        ofs.write(reinterpret_cast<char*>(frame.data()[0]), y_size);
-        ofs.write(reinterpret_cast<char*>(frame.data()[1]), u_size);
-        ofs.write(reinterpret_cast<char*>(frame.data()[2]), v_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[0]), y_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[1]), u_size);
+        ofs.write(reinterpret_cast<char*>(frame->data()[2]), v_size);
     }
     else
     {
-        AV_LOG_E("don't support format %d yet", frame.format());
+        AV_LOG_E("don't support format %d yet", frame->format());
     }
 }
 

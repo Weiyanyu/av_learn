@@ -56,7 +56,7 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
     av_init_packet(&audioPacket);
 
     // 2. codec
-    AudioCodec audioCodec(params.codecParam);
+    auto audioCodec = std::make_shared<AudioCodec>(params.codecParam);
 
     // 3. calc frame size
     if(!readFromStream)
@@ -75,11 +75,11 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
     else
     {
         // read from stream
-        if(audioCodec.encodeEnable())
+        if(audioCodec->encodeEnable())
         {
             // need encode
             frameSize =
-                audioCodec.frameSize(true) *
+                audioCodec->frameSize(true) *
                 av_get_channel_layout_nb_channels(params.codecParam.encodeParam.channelLayout) *
                 av_get_bytes_per_sample((AVSampleFormat)params.codecParam.encodeParam.sampleFmt);
         }
@@ -113,16 +113,16 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
 
     // 5. create swr
     params.resampleParam.fullOutputBufferSize = outputBufferSize;
-    SwrConvertor swrConvertor(params.resampleParam);
+    auto swrConvertor = std::make_shared<SwrConvertor>(params.resampleParam);
 
     // 6. create a frame
     AudioFrameParam AudioFrameParam = {
-        .enable        = audioCodec.encodeEnable(),
+        .enable        = audioCodec->encodeEnable(),
         .frameSize     = frameSize,
         .channelLayout = params.codecParam.encodeParam.channelLayout,
         .format        = params.codecParam.encodeParam.sampleFmt,
     };
-    Frame frame(AudioFrameParam);
+    auto frame = std::make_shared<Frame>(AudioFrameParam);
 
     // 7. create a packet
     AVPacket* newPkt = av_packet_alloc();
@@ -131,8 +131,6 @@ void AudioDevice::readAndEncode(ReadDeviceDataParam& params)
         AV_LOG_E("Failed to alloc packet");
         return;
     }
-
-
 
     AudioReaderParam param{.ifs          = ifs,
                             .ofs          = ofs,
@@ -210,8 +208,8 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
                              .avCodecPar = fmtCtx->streams[audioStreamIdx]->codecpar,
                              .byId       = true};
     CodecParam   codecParam = {.decodeParam = decodeParam};
-    AudioCodec   audioCodec(codecParam);
-    if(!audioCodec.decodeEnable())
+    auto audioCodec = std::make_shared<AudioCodec>(codecParam);
+    if(!audioCodec->decodeEnable())
     {
         AV_LOG_D("can't use decode. please check it");
         return;
@@ -222,7 +220,7 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
     av_init_packet(&packet);
 
     // 4. create a frame
-    Frame frame;
+    auto frame = std::make_shared<Frame>();
 
     // 5. calc out Buffer size
     int outSampleSize = av_get_bytes_per_sample(static_cast<AVSampleFormat>(params.outSampleFmt));
@@ -235,25 +233,25 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
     ReampleParam swrCtxParam = {.outChannelLayout = params.outChannelLayout,
                                 .outSampleFmt    = static_cast<AVSampleFormat>(params.outSampleFmt),
                                 .outSampleRate   = params.outSampleRate,
-                                .inChannelLayout = (int64_t)audioCodec.channelLayout(false),
-                                .inSampleFmt     = (AVSampleFormat)audioCodec.format(false),
-                                .inSampleRate    = audioCodec.sampleRate(false),
+                                .inChannelLayout = (int64_t)audioCodec->channelLayout(false),
+                                .inSampleFmt     = (AVSampleFormat)audioCodec->format(false),
+                                .inSampleRate    = audioCodec->sampleRate(false),
                                 .logOffset       = 0,
                                 .logCtx          = nullptr,
                                 .fullOutputBufferSize = outputBufferSize};
-    SwrConvertor swrConvertor(swrCtxParam);
+    auto swrConvertor = std::make_shared<SwrConvertor>(swrCtxParam);
 
     // 7. decodec callback
-    auto decodecCB = [&](Frame& frame) {
-        if(swrConvertor.enable())
+    auto decodecCB = [&](std::shared_ptr<Frame> frame) {
+        if(swrConvertor->enable())
         {
-            int64_t dst_nb_samples = swrConvertor.calcNBSample(frame.getAVFrame()->sample_rate,
-                                                               frame.getAVFrame()->nb_samples,
+            int64_t dst_nb_samples = swrConvertor->calcNBSample(frame->getAVFrame()->sample_rate,
+                                                               frame->getAVFrame()->nb_samples,
                                                                params.outSampleRate);
-            auto [outputData, outputSize] = swrConvertor.convert(frame.data(),
-                                                                 frame.lineSize(0),
+            auto [outputData, outputSize] = swrConvertor->convert(frame->data(),
+                                                                 frame->lineSize(0),
                                                                  &dstData,
-                                                                 frame.getAVFrame()->nb_samples,
+                                                                 frame->getAVFrame()->nb_samples,
                                                                  dst_nb_samples);
 
             if(outputData)
@@ -264,7 +262,7 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
         }
         else
         {
-            ofs.write(reinterpret_cast<char*>(frame.data()[0]), frame.lineSize(0));
+            ofs.write(reinterpret_cast<char*>(frame->data()[0]), frame->lineSize(0));
         }
     };
 
@@ -273,23 +271,23 @@ void AudioDevice::readAndDecode(ReadDeviceDataParam& params)
     {
         if(packet.stream_index == audioStreamIdx)
         {
-            audioCodec.decode(frame, &packet, decodecCB, false);
+            audioCodec->decode(frame, &packet, decodecCB, false);
         }
         av_packet_unref(&packet);
     }
 
     // 9. flush frame
-    if(audioCodec.decodeEnable() && frame.isValid())
+    if(audioCodec->decodeEnable() && frame->isValid())
     {
         AV_LOG_D("flush remain frame");
-        audioCodec.decode(frame, &packet, decodecCB, true);
+        audioCodec->decode(frame, &packet, decodecCB, true);
     }
 
     // 10. flush swrConvetor remain
-    while(swrConvertor.enable() && swrConvertor.hasRemain())
+    while(swrConvertor->enable() && swrConvertor->hasRemain())
     {
         AV_LOG_D("start flush swr remain");
-        auto [outputData, outputSize] = swrConvertor.flushRemain(&dstData);
+        auto [outputData, outputSize] = swrConvertor->flushRemain(&dstData);
         if(outputData)
         {
             ofs.write(reinterpret_cast<char*>(outputData[0]), outputSize);
@@ -322,19 +320,19 @@ void AudioDevice::readAudioFromHWDevice(AudioReaderParam& param)
     do
     {
         recordCnt--;
-        if(param.swrConvertor.enable())
+        if(param.swrConvertor->enable())
         {
-            auto [outputData, outputSize] = param.swrConvertor.convert(&audioPacket.data,
+            auto [outputData, outputSize] = param.swrConvertor->convert(&audioPacket.data,
                                                                        audioPacket.size,
                                                                        &param.dstData,
                                                                        param.inSamples,
                                                                        param.outSamples);
             if(outputData && outputSize)
             {
-                if(param.audioCodec.encodeEnable() && param.frame.isValid())
+                if(param.audioCodec->encodeEnable() && param.frame->isValid())
                 {
-                    param.frame.writeAudioData(outputData, outputSize);
-                    param.audioCodec.encode(param.frame, param.pkt, encodeCB);
+                    param.frame->writeAudioData(outputData, outputSize);
+                    param.audioCodec->encode(param.frame, param.pkt, encodeCB);
                 }
                 else
                 {
@@ -344,10 +342,10 @@ void AudioDevice::readAudioFromHWDevice(AudioReaderParam& param)
         }
         else
         {
-            if(param.audioCodec.encodeEnable() && param.frame.isValid())
+            if(param.audioCodec->encodeEnable() && param.frame->isValid())
             {
-                param.frame.writeAudioData(&audioPacket.data, audioPacket.size);
-                param.audioCodec.encode(param.frame, param.pkt, encodeCB);
+                param.frame->writeAudioData(&audioPacket.data, audioPacket.size);
+                param.audioCodec->encode(param.frame, param.pkt, encodeCB);
             }
             else
             {
@@ -359,16 +357,16 @@ void AudioDevice::readAudioFromHWDevice(AudioReaderParam& param)
     } while(av_read_frame(fmtCtx, &audioPacket) == 0 && recordCnt > 0);
 
     // flush swr
-    while(param.swrConvertor.hasRemain())
+    while(param.swrConvertor->hasRemain())
     {
-        auto [remainData, remainBufferSize] = param.swrConvertor.flushRemain(&param.dstData);
+        auto [remainData, remainBufferSize] = param.swrConvertor->flushRemain(&param.dstData);
         AV_LOG_D("flush remain buffer size %d", remainBufferSize);
         if(remainData && remainBufferSize)
         {
-            if(param.audioCodec.encodeEnable() && param.frame.isValid())
+            if(param.audioCodec->encodeEnable() && param.frame->isValid())
             {
-                param.frame.writeAudioData(remainData, remainBufferSize);
-                param.audioCodec.encode(param.frame, param.pkt, encodeCB);
+                param.frame->writeAudioData(remainData, remainBufferSize);
+                param.audioCodec->encode(param.frame, param.pkt, encodeCB);
             }
             else
             {
@@ -378,9 +376,9 @@ void AudioDevice::readAudioFromHWDevice(AudioReaderParam& param)
     }
 
     // flush encode
-    if(param.audioCodec.encodeEnable() && param.frame.isValid())
+    if(param.audioCodec->encodeEnable() && param.frame->isValid())
     {
-        param.audioCodec.encode(param.frame, param.pkt, encodeCB, true);
+        param.audioCodec->encode(param.frame, param.pkt, encodeCB, true);
     }
 }
 
@@ -393,21 +391,21 @@ void AudioDevice::readAudioFromStream(AudioReaderParam& param)
     int pts = 0;
     while((n = param.ifs.readsome((char*)param.srcData, param.frameSize)) > 0)
     {
-        if(param.swrConvertor.enable())
+        if(param.swrConvertor->enable())
         {
-            auto [outputData, outputSize] = param.swrConvertor.convert(
+            auto [outputData, outputSize] = param.swrConvertor->convert(
                 &param.srcData, n, &param.dstData, param.inSamples, param.outSamples);
             if(outputData && outputSize)
             {
-                if(param.audioCodec.encodeEnable())
+                if(param.audioCodec->encodeEnable())
                 {
-                    if(param.frame.writeAudioData(outputData, outputSize) == false)
+                    if(param.frame->writeAudioData(outputData, outputSize) == false)
                     {
                         return;
                     }
-                    pts += param.frame.getAVFrame()->nb_samples;
-                    param.frame.getAVFrame()->pts = pts;
-                    param.audioCodec.encode(param.frame, param.pkt, cb, false);
+                    pts += param.frame->getAVFrame()->nb_samples;
+                    param.frame->getAVFrame()->pts = pts;
+                    param.audioCodec->encode(param.frame, param.pkt, cb, false);
                 }
                 else
                 {
@@ -417,15 +415,15 @@ void AudioDevice::readAudioFromStream(AudioReaderParam& param)
         }
         else
         {
-            if(param.audioCodec.encodeEnable())
+            if(param.audioCodec->encodeEnable())
             {
-                if(param.frame.writeAudioData(&param.srcData, n) == false)
+                if(param.frame->writeAudioData(&param.srcData, n) == false)
                 {
                     return;
                 }
-                pts += param.frame.getAVFrame()->nb_samples;
-                param.frame.getAVFrame()->pts = pts;
-                param.audioCodec.encode(param.frame, param.pkt, cb, false);
+                pts += param.frame->getAVFrame()->nb_samples;
+                param.frame->getAVFrame()->pts = pts;
+                param.audioCodec->encode(param.frame, param.pkt, cb, false);
             }
             else
             {
@@ -435,16 +433,16 @@ void AudioDevice::readAudioFromStream(AudioReaderParam& param)
     }
 
     // flush swr
-    while(param.swrConvertor.enable() && param.swrConvertor.hasRemain())
+    while(param.swrConvertor->enable() && param.swrConvertor->hasRemain())
     {
         AV_LOG_D("start flush");
-        auto [remainData, remainBufferSize] = param.swrConvertor.flushRemain(&param.dstData);
+        auto [remainData, remainBufferSize] = param.swrConvertor->flushRemain(&param.dstData);
         if(remainData && remainBufferSize)
         {
-            if(param.audioCodec.encodeEnable())
+            if(param.audioCodec->encodeEnable())
             {
-                param.frame.writeAudioData(remainData, remainBufferSize);
-                param.audioCodec.encode(param.frame, param.pkt, cb);
+                param.frame->writeAudioData(remainData, remainBufferSize);
+                param.audioCodec->encode(param.frame, param.pkt, cb);
             }
             else
             {
@@ -455,8 +453,8 @@ void AudioDevice::readAudioFromStream(AudioReaderParam& param)
     }
 
     // flush encode
-    if(param.audioCodec.encodeEnable())
+    if(param.audioCodec->encodeEnable())
     {
-        param.audioCodec.encode(param.frame, param.pkt, cb, true);
+        param.audioCodec->encode(param.frame, param.pkt, cb, true);
     }
 }

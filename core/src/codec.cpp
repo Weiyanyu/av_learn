@@ -9,6 +9,8 @@ extern "C"
 }
 
 #include <ostream>
+#include <memory>
+
 
 // -------------------------- Base Codec --------------------------
 Codec::Codec(const CodecParam& initParam, MediaType mediaType)
@@ -165,14 +167,14 @@ Codec::~Codec()
     }
 }
 
-void Codec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush)
+void Codec::encode(std::shared_ptr<Frame> frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush)
 {
     if(!m_encodeEnable)
         return;
     int res = 0;
     if(!isFlush)
     {
-        AVFrame* avFrame = frame.getAVFrame();
+        AVFrame* avFrame = frame->getAVFrame();
         res              = avcodec_send_frame(m_encodeCodecCtx, avFrame);
     }
     else
@@ -197,7 +199,7 @@ void Codec::encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush
     }
 }
 
-void Codec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
+void Codec::decode(std::shared_ptr<Frame> frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
 {
     int res = -1;
     if(isFlush)
@@ -210,7 +212,7 @@ void Codec::decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush)
     }
     while(res >= 0)
     {
-        res = avcodec_receive_frame(m_decodeCodecCtx, frame.getAVFrame());
+        res = avcodec_receive_frame(m_decodeCodecCtx, frame->getAVFrame());
         if(res == AVERROR(EAGAIN) || res == AVERROR_EOF)
         {
             break;

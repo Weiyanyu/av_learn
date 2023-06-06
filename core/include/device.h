@@ -39,9 +39,9 @@ struct AudioReaderParam
     int            frameSize;
     int            inSamples;
     int            outSamples;
-    SwrConvertor&  swrConvertor;
-    AudioCodec&    audioCodec;
-    Frame&         frame;
+    std::shared_ptr<SwrConvertor> swrConvertor;
+    std::shared_ptr<Codec> audioCodec;
+    std::shared_ptr<Frame>         frame;
     AVPacket*      pkt;
 };
 
@@ -59,8 +59,8 @@ struct VideoReaderParam
     int outHeight = 0;
     int outPixFmt = -1;
 
-    VideoCodec& videoCodec;
-    Frame&      frame;
+    std::shared_ptr<Codec>      videoCodec;
+    std::shared_ptr<Frame>      frame;
     AVPacket*   pkt;
 };
 
@@ -150,7 +150,7 @@ public:
     void readAndDecode(ReadDeviceDataParam& params) override;
 
 public:
-    void writeImageToFile(std::ofstream& ofs, Frame& frame);
+    void writeImageToFile(std::ofstream& ofs, std::shared_ptr<Frame> frame);
 
 private:
     void readVideoFromStream(VideoReaderParam& param);

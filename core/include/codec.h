@@ -4,6 +4,7 @@
 #include <functional>
 #include <ostream>
 #include <string>
+#include <memory>
 
 #include "../../utils/include/baseDefine.h"
 
@@ -13,7 +14,7 @@ class AVPacket;
 class Frame;
 class AVCodecParameters;
 
-using FrameReceiveCB  = std::function<void(Frame&)>;
+using FrameReceiveCB  = std::function<void(std::shared_ptr<Frame>)>;
 using PacketReceiveCB = std::function<void(AVPacket*)>;
 
 struct EncoderParam
@@ -92,13 +93,13 @@ public:
     {
         return m_encodeEnable;
     }
-    virtual void encode(Frame& frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush = false);
+    virtual void encode(std::shared_ptr<Frame> frame, AVPacket* pkt, PacketReceiveCB cb, bool isFlush = false);
 
     virtual bool decodeEnable() const
     {
         return m_decodeEnable;
     }
-    virtual void decode(Frame& frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush = false);
+    virtual void decode(std::shared_ptr<Frame> frame, AVPacket* pkt, FrameReceiveCB cb, bool isFlush = false);
 
 public:
     // util func
